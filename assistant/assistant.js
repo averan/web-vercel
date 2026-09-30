@@ -531,7 +531,7 @@
     if (!cfg.tickets?.endpoint || cfg.unavailable) return;
     const msg = history[index];
     const t = msg && parseTicket(msg.content);
-    if (!t) return;
+    if (!t) return nudgeUI(bubble, index);
     const bar = document.createElement('div');
     bar.className = 'oa-ticket-bar';
     if (msg.ticketId) {
@@ -550,6 +550,21 @@
     if (problem) { sendB.disabled = true; status.textContent = problem; }
     bar.querySelector('.oa-ticket-fix').onclick = () => { input.placeholder = 'Dime qué quieres corregir…'; input.focus(); };
     sendB.onclick = () => submitTicket(t, index, bar);
+    bubble.append(bar);
+  }
+  // Respaldo: si el visitante ya dio su correo y el modelo respondió sin presentar la solicitud
+  // (a veces pide datos opcionales o confirmaciones), ofrece un botón para pedirla explícitamente.
+  const EMAIL_IN_TEXT = /[^@\s]+@[^@\s]+\.[a-z]{2,}/i;
+  function nudgeUI(bubble, index) {
+    if (index !== history.length - 1 || history[index].role !== 'assistant') return;
+    let lastEmail = -1;
+    history.forEach((m, i) => { if (m.role === 'user' && EMAIL_IN_TEXT.test(m.content)) lastEmail = i; });
+    if (lastEmail < 0 || history.slice(lastEmail).some(m => m.ticketId)) return; // sin correo, o ya enviada
+    const bar = document.createElement('div');
+    bar.className = 'oa-ticket-bar oa-nudge';
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'oa-ticket-send', textContent: '📋 Preparar mi solicitud de contacto' });
+    b.onclick = () => { if (!ctrl) { bar.remove(); send('Prepara ya mi solicitud de contacto con los datos que te di (los opcionales, como «no informado»).'); } };
+    bar.append(b);
     bubble.append(bar);
   }
   async function submitTicket(t, index, bar) {
@@ -628,6 +643,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'oa-msg oa-assistant';
     bubble.innerHTML = '<span class="oa-typing" aria-label="Escribiendo"><i></i><i></i><i></i></span>';
+    list.querySelectorAll('.oa-nudge').forEach(el => el.remove());
     list.append(bubble); scrollToEnd();
 
     let content = '', frame = 0, stopped = false;

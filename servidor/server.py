@@ -209,24 +209,34 @@ class Handler(BaseHTTPRequestHandler):
     do_DELETE = do_PATCH = do_PUT
 
     # ---------- solicitudes de contacto ----------
-    def create_contact(self):
-        ip = self.client_ip()
+    def check_contact(self, ip):
+        """Valida la solicitud. Devuelve (status, mensaje de error) o (201, None) y deja los datos en self._contact."""
         length = int(self.headers.get('Content-Length') or 0)
         if length <= 0 or length > MAX_BODY:
-            return self.error(400, 'Solicitud no válida.')
+            return 400, 'Solicitud no válida.'
         if rate_limited('contacto:' + ip, CONTACTS_PER_MIN):
-            return self.error(429, 'Has enviado demasiadas solicitudes seguidas. Espera un minuto.')
+            return 429, 'Has enviado demasiadas solicitudes seguidas. Espera un minuto.'
         try:
             data = json.loads(self.rfile.read(length))
             assert isinstance(data, dict)
         except (ValueError, AssertionError):
-            return self.error(400, 'Solicitud no válida.')
+            return 400, 'Solicitud no válida.'
         datos = {k: str(data.get(k) or '').strip()[:n] for k, n in contactos.CAMPOS.items()}
         faltan = [k for k in contactos.OBLIGATORIOS if not datos[k] or re.match(r'no informad', datos[k], re.I)]
         if faltan:
-            return self.error(400, 'Faltan datos obligatorios: ' + ', '.join(faltan) + '.')
+            return 400, 'Faltan datos obligatorios: ' + ', '.join(faltan) + '.'
         if not EMAIL_RE.match(datos['correo']):
-            return self.error(400, 'El correo no parece válido. Corrígelo y vuelve a enviar.')
+            return 400, 'El correo no parece válido. Corrígelo y vuelve a enviar.'
+        self._contact = (data, datos)
+        return 201, None
+
+    def create_contact(self):
+        ip = self.client_ip()
+        status, problem = self.check_contact(ip)
+        if problem:  # se registra el rechazo para poder diagnosticar envíos que no llegan
+            print(f'{time.strftime("%H:%M:%S")}  CONTACTO RECHAZADO  {ip:<15}  {status}  {problem}', flush=True)
+            return self.error(status, problem)
+        data, datos = self._contact
         conv = data.get('conversacion') if isinstance(data.get('conversacion'), list) else []
         conversacion = [{'rol': str(m.get('role', ''))[:20], 'texto': str(m.get('content', ''))[:4000]}
                         for m in conv[-MAX_MESSAGES:] if isinstance(m, dict)]
