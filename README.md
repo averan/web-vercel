@@ -101,7 +101,7 @@ en `localhost:5190` el widget usa el backend local automáticamente.
        assistantName: 'Asistente Ejemplo', modelLabel: 'Ejemplo-Bot',
        greeting: '¡Hola! ¿En qué te ayudo?',
        suggestions: ['¿Qué servicios tienen?', 'Quiero que me contacten'],
-       contactConfirmation: 'Te escribiremos a {correo} a la brevedad.',
+       contactConfirmation: 'Te escribiremos a {contacto} a la brevedad.',
        unavailableMessage: 'El asistente no está disponible. Escríbenos a contacto@ejemplo.com.',
        footnote: 'Asistente virtual de Ejemplo'
      };
@@ -117,6 +117,21 @@ en `localhost:5190` el widget usa el backend local automáticamente.
 | `servidor/sitios/<dominio>.md` | Qué sabe el asistente y cómo habla (identidad, servicios, precios, FAQ, reglas propias). Sin archivo se usa `servidor/contexto.md` (Faena) |
 | `servidor/reglas-contacto.md` | Común a todos: formato de la solicitud de contacto y reglas generales (no editar el formato: el botón «Enviar solicitud» depende de él) |
 | `window.FAENA_BOT` en la página | Nombre, saludo, sugerencias, confirmación y avisos que ve el visitante |
+
+**Datos obligatorios por sitio.** Por defecto la solicitud exige nombre, empresa, correo y necesidad. Un sitio
+puede cambiarlo con un bloque al inicio de su archivo (ver `sitios/local-ia…` como ejemplo):
+```
+---
+obligatorios: necesidad
+al_menos_uno: correo, telefono, otro
+reglas_comunes: no
+---
+```
+`al_menos_uno` = basta con uno de esos medios de contacto; `reglas_comunes: no` = el archivo trae su propio
+procedimiento y formato de solicitud (con el mismo encabezado «📋 Solicitud de contacto lista para enviar») en vez de
+`reglas-contacto.md`. En la página hay que indicar lo mismo al widget: `contactRequired: ['necesidad']` y
+`contactAnyOf: ['correo', 'telefono', 'otro']` dentro de `window.FAENA_BOT`. Campos disponibles: nombre, empresa,
+cargo, correo, telefono, otro (LinkedIn, Telegram…), preferencia (llamada, Meet, WhatsApp), interes, necesidad.
 
 Los cambios en los `.md` se aplican en la siguiente consulta, sin reiniciar. Las solicitudes de todos los sitios llegan
 a la misma página de gestión (http://localhost:5195), con una columna **Sitio** que indica su origen.

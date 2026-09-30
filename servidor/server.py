@@ -71,6 +71,11 @@ EMAIL_IN_TEXT = re.compile(r'[^@\s]+@[^@\s]+\.[a-z]{2,}', re.I)
 CONTACT_NUDGE = ('\n\n[Nota interna del sistema, no la menciones: este mensaje trae el correo del visitante. '
                  'Si ya tienes su nombre y empresa, responde AHORA solo con el bloque «📋 Solicitud de contacto lista '
                  'para enviar» (cargo y teléfono: "no informado" si no los dio; el área la eliges tú), sin hacer preguntas.]')
+# Variante para sitios que aceptan cualquier medio de contacto (al_menos_uno en su archivo de sitios/)
+CONTACT_NUDGE_ANY = ('\n\n[Nota interna del sistema, no la menciones: este mensaje trae un medio de contacto del visitante. '
+                     'Responde AHORA solo con el bloque «📋 Solicitud de contacto lista para enviar», con "no informado" '
+                     'en los datos que falten, sin hacer preguntas.]')
+PHONE_IN_TEXT = re.compile(r'\+?\d[\d\s().-]{6,}\d')
 
 slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 hits = defaultdict(deque)
@@ -95,13 +100,37 @@ def origin_allowed(origin):
     return bool(origin) and (origin in ALLOWED_ORIGINS or site_file(origin) is not None)
 
 
-def system_prompt(origin=''):
-    """Contexto del sitio (o el predeterminado) + reglas comunes. Se leen en cada consulta:
-    los cambios se aplican sin reiniciar."""
+def site_config(origin):
+    """(contexto, reglas) del sitio. El archivo puede empezar con un bloque de configuración:
+        ---
+        obligatorios: necesidad
+        al_menos_uno: correo, telefono, otro
+        reglas_comunes: no
+        ---
+    Sin bloque: obligatorios de Faena (nombre, empresa, correo, necesidad) y con reglas comunes."""
     with open(site_file(origin) or CONTEXT_FILE, encoding='utf-8') as f:
-        context = f.read().strip()
-    with open(COMMON_FILE, encoding='utf-8') as f:
-        return context + '\n\n' + f.read().strip()
+        text = f.read()
+    rules = {'obligatorios': list(contactos.OBLIGATORIOS), 'al_menos_uno': [], 'reglas_comunes': True}
+    m = re.match(r'---\s*\n(.*?)\n---\s*\n', text, re.S)
+    if m:
+        text = text[m.end():]
+        for line in m.group(1).splitlines():
+            key, _, value = (x.strip() for x in line.partition(':'))
+            if key in ('obligatorios', 'al_menos_uno'):
+                rules[key] = [c for c in (x.strip() for x in value.split(',')) if c in contactos.CAMPOS]
+            elif key == 'reglas_comunes':
+                rules[key] = value.lower() not in ('no', 'false', '0')
+    return text.strip(), rules
+
+
+def system_prompt(origin=''):
+    """Contexto del sitio (o el predeterminado) + reglas comunes si corresponde. Se leen en cada
+    consulta: los cambios se aplican sin reiniciar."""
+    text, rules = site_config(origin)
+    if rules['reglas_comunes']:
+        with open(COMMON_FILE, encoding='utf-8') as f:
+            text += '\n\n' + f.read().strip()
+    return text
 
 
 def rate_limited(key, limit=RATE_PER_MIN):
@@ -250,11 +279,17 @@ class Handler(BaseHTTPRequestHandler):
             assert isinstance(data, dict)
         except (ValueError, AssertionError):
             return 400, 'Solicitud no válida.'
+        rules = site_config(self.origin())[1]
         datos = {k: str(data.get(k) or '').strip()[:n] for k, n in contactos.CAMPOS.items()}
-        faltan = [k for k in contactos.OBLIGATORIOS if not datos[k] or re.match(r'no informad', datos[k], re.I)]
+        for k, v in datos.items():  # «no informado» cuenta como vacío
+            if re.match(r'no informad', v, re.I):
+                datos[k] = ''
+        faltan = [k for k in rules['obligatorios'] if not datos[k]]
         if faltan:
             return 400, 'Faltan datos obligatorios: ' + ', '.join(faltan) + '.'
-        if not EMAIL_RE.match(datos['correo']):
+        if rules['al_menos_uno'] and not any(datos[k] for k in rules['al_menos_uno']):
+            return 400, 'Indica al menos un medio de contacto (correo, teléfono u otro).'
+        if datos['correo'] and not EMAIL_RE.match(datos['correo']):
             return 400, 'El correo no parece válido. Corrígelo y vuelve a enviar.'
         self._contact = (data, datos)
         return 201, None
@@ -315,8 +350,10 @@ class Handler(BaseHTTPRequestHandler):
         messages = clean_messages(body['messages'])
         if not messages or messages[-1]['role'] != 'user':
             self.error(400, 'Petición no válida.'); return 400
-        if EMAIL_IN_TEXT.search(messages[-1]['content']):
-            messages[-1] = {'role': 'user', 'content': messages[-1]['content'] + CONTACT_NUDGE}
+        any_contact = bool(site_config(self.origin())[1]['al_menos_uno'])
+        last = messages[-1]['content']
+        if EMAIL_IN_TEXT.search(last) or (any_contact and PHONE_IN_TEXT.search(last)):
+            messages[-1] = {'role': 'user', 'content': last + (CONTACT_NUDGE_ANY if any_contact else CONTACT_NUDGE)}
         if body.get('model') not in usable_models():
             models_cache['t'] = None  # puede que el modelo haya cambiado: se vuelve a consultar la próxima vez
             self.error(404, 'El asistente se está actualizando. Inténtalo de nuevo.'); return 404

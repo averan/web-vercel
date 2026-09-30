@@ -24,7 +24,9 @@
     suggestions: [],     // preguntas sugeridas al empezar (si no hay contexto.js)
     unavailable: false,  // true = sin backend: muestra unavailableMessage y no intenta conectar
     unavailableMessage: 'En este momento el asistente no está disponible.',
-    contactConfirmation: 'Te contactaremos en {correo} a la brevedad.', // tras enviar la solicitud; {correo} y {id}
+    contactConfirmation: 'Te contactaremos en {contacto} a la brevedad.', // tras enviar; {contacto}, {correo} y {id}
+    contactRequired: ['nombre', 'empresa', 'correo', 'necesidad'], // datos obligatorios de la solicitud
+    contactAnyOf: [],    // p. ej. ['correo', 'telefono', 'otro']: basta con uno de estos medios de contacto
   }, window.OMLX_ASSISTANT || {});
   const base = (cfg.baseUrl || '').replace(/\/+$/, '');
 
@@ -508,7 +510,12 @@
     'correo': 'correo', 'correo electronico': 'correo', 'email': 'correo', 'mail': 'correo',
     'telefono': 'telefono', 'telefono de contacto': 'telefono',
     'area de interes': 'interes', 'area': 'interes', 'interes': 'interes', 'necesidad': 'necesidad', 'desafio': 'necesidad',
+    'whatsapp': 'telefono', 'celular': 'telefono', 'telefono o whatsapp': 'telefono', 'telefono whatsapp': 'telefono',
+    'otro contacto': 'otro', 'otro medio': 'otro', 'otro medio de contacto': 'otro',
+    'preferencia': 'preferencia', 'modalidad': 'preferencia', 'medio preferido': 'preferencia', 'prefiere': 'preferencia',
   };
+  const FIELD_NAMES = { nombre: 'nombre', empresa: 'empresa', correo: 'correo', telefono: 'teléfono', otro: 'otro contacto', necesidad: 'necesidad', interes: 'área de interés' };
+  const blankField = v => !v || /^no informad/i.test(v);
   const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   function parseTicket(md) {
     if (!norm(md).includes(TICKET_MARK)) return null;
@@ -521,10 +528,11 @@
     return t;
   }
   function ticketProblems(t) {
-    const faltan = [['nombre', 'nombre'], ['empresa', 'empresa'], ['correo', 'correo'], ['necesidad', 'necesidad']]
-      .filter(([k]) => !t[k] || /^no informad/i.test(t[k])).map(([, n]) => n);
+    const faltan = list_(cfg.contactRequired).filter(k => blankField(t[k])).map(k => FIELD_NAMES[k] || k);
     if (faltan.length) return `Faltan datos obligatorios (${faltan.join(', ')}): complétalos en la conversación.`;
-    if (!EMAIL_RE.test(t.correo)) return 'El correo no parece válido: dime el correcto.';
+    const anyOf = list_(cfg.contactAnyOf);
+    if (anyOf.length && anyOf.every(k => blankField(t[k]))) return 'Falta un medio de contacto (correo, teléfono u otro): dímelo en la conversación.';
+    if (!blankField(t.correo) && !EMAIL_RE.test(t.correo)) return 'El correo no parece válido: dime el correcto.';
     return '';
   }
   // Pone la barra de acciones (o la marca de «enviada») bajo la última solicitud presentada
@@ -556,10 +564,12 @@
   // Respaldo: si el visitante ya dio su correo y el modelo respondió sin presentar la solicitud
   // (a veces pide datos opcionales o confirmaciones), ofrece un botón para pedirla explícitamente.
   const EMAIL_IN_TEXT = /[^@\s]+@[^@\s]+\.[a-z]{2,}/i;
+  const PHONE_IN_TEXT = /\+?\d[\d\s().-]{6,}\d/;
+  const hasContact = text => EMAIL_IN_TEXT.test(text) || (list_(cfg.contactAnyOf).includes('telefono') && PHONE_IN_TEXT.test(text));
   function nudgeUI(bubble, index) {
     if (index !== history.length - 1 || history[index].role !== 'assistant') return;
     let lastEmail = -1;
-    history.forEach((m, i) => { if (m.role === 'user' && EMAIL_IN_TEXT.test(m.content)) lastEmail = i; });
+    history.forEach((m, i) => { if (m.role === 'user' && hasContact(m.content)) lastEmail = i; });
     if (lastEmail < 0 || history.slice(lastEmail).some(m => m.ticketId)) return; // sin correo, o ya enviada
     const bar = document.createElement('div');
     bar.className = 'oa-ticket-bar oa-nudge';
@@ -586,7 +596,9 @@
       const { id } = await res.json();
       if (history !== convo) return;
       history[index].ticketId = id;
-      const note = `✅ **Solicitud enviada** (${id}). ` + String(cfg.contactConfirmation).replace(/\{correo\}/g, t.correo).replace(/\{id\}/g, id);
+      const contacto = ['correo', 'telefono', 'otro'].map(k => t[k]).find(v => !blankField(v)) || 'el medio que indicaste';
+      const note = `✅ **Solicitud enviada** (${id}). ` + String(cfg.contactConfirmation)
+        .replace(/\{contacto\}/g, contacto).replace(/\{correo\}/g, t.correo).replace(/\{id\}/g, id);
       history.push({ role: 'assistant', content: note });
       saveHistory();
       bar.className = 'oa-ticket-bar oa-ticket-done';

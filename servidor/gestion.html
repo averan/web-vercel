@@ -147,9 +147,9 @@ async function load() {
       el('td', { className: 'mono', textContent: c.id }),
       el('td', { className: 'muted', textContent: fmt(c.fecha) }),
       el('td', {}, badge(c.estado)),
-      el('td', {}, el('div', { className: 'strong', textContent: c.nombre }), el('div', { className: 'muted', textContent: blank(c.cargo) ? '' : c.cargo })),
-      el('td', { textContent: c.empresa }),
-      el('td', {}, el('div', { textContent: c.correo }), el('div', { className: 'muted', textContent: blank(c.telefono) ? '' : c.telefono })),
+      el('td', {}, el('div', { className: 'strong', textContent: blank(c.nombre) ? '(sin nombre)' : c.nombre }), el('div', { className: 'muted', textContent: blank(c.cargo) ? '' : c.cargo })),
+      el('td', { textContent: blank(c.empresa) ? '—' : c.empresa }),
+      el('td', {}, ...[c.correo, c.telefono, c.otro].filter(v => !blank(v)).map((v, i) => el('div', { className: i ? 'muted' : '', textContent: v }))),
       el('td', { className: 'wrap muted', textContent: c.interes || '—' }),
       el('td', { className: 'muted', textContent: c.sitio || '—' }));
     if (c.id === current) tr.classList.add('sel');
@@ -179,17 +179,22 @@ async function openContact(id) {
   try { c = await api('/api/contactos/' + encodeURIComponent(id)); }
   catch (e) { toast(e.message); return; }
   $('#d-meta').replaceChildren(el('span', { className: 'mono muted', textContent: c.id + '  ' }), badge(c.estado));
-  $('#d-title').textContent = `${c.nombre} · ${c.empresa}`;
+  $('#d-title').textContent = [c.nombre, c.empresa].filter(v => !blank(v)).join(' · ') || 'Sin nombre';
   const body = $('#d-body'); body.innerHTML = '';
 
   const dl = el('dl', { className: 'fields' });
-  for (const [k, v] of [['Nombre', c.nombre], ['Cargo', c.cargo], ['Empresa', c.empresa], ['Correo', c.correo], ['Teléfono', c.telefono],
+  for (const [k, v] of [['Nombre', c.nombre], ['Cargo', c.cargo], ['Empresa', c.empresa], ['Correo', c.correo], ['Teléfono', c.telefono], ['Otro contacto', c.otro], ['Preferencia', c.preferencia],
     ['Área de interés', c.interes], ['Sitio', c.sitio], ['Recibida', fmt(c.fecha)]])
     dl.append(el('dt', { textContent: k }), el('dd', { textContent: blank(v) ? '—' : v }));
-  const asunto = encodeURIComponent('Faena Growth Partner · tu solicitud ' + c.id);
-  const saludo = encodeURIComponent(`Hola ${c.nombre.split(' ')[0]}:\n\nGracias por contactarnos a través de nuestro sitio. `);
-  const quick = el('div', { className: 'quick' }, el('a', { className: 'btn', href: `mailto:${c.correo}?subject=${asunto}&body=${saludo}`, textContent: '✉️ Responder por correo' }));
-  if (!blank(c.telefono)) quick.append(el('a', { className: 'btn ghost', href: 'tel:' + c.telefono.replace(/[^\d+]/g, ''), textContent: '📞 ' + c.telefono }));
+  const asunto = encodeURIComponent((c.sitio === 'web-vercel-zeta-red.vercel.app' ? 'Faena Growth Partner · ' : '') + 'Tu solicitud ' + c.id);
+  const saludo = encodeURIComponent(`Hola${blank(c.nombre) ? '' : ' ' + c.nombre.split(' ')[0]}:\n\nGracias por contactarnos a través de nuestro sitio. `);
+  const quick = el('div', { className: 'quick' });
+  if (!blank(c.correo) && c.correo.includes('@')) quick.append(el('a', { className: 'btn', href: `mailto:${c.correo}?subject=${asunto}&body=${saludo}`, textContent: '✉️ Responder por correo' }));
+  if (!blank(c.telefono)) {
+    const digits = c.telefono.replace(/[^\d]/g, '');
+    quick.append(el('a', { className: 'btn ghost', href: 'tel:' + c.telefono.replace(/[^\d+]/g, ''), textContent: '📞 ' + c.telefono }),
+      el('a', { className: 'btn ghost', href: 'https://wa.me/' + digits, target: '_blank', rel: 'noopener', textContent: '💬 WhatsApp' }));
+  }
   body.append(dl, quick, el('h3', { textContent: 'Necesidad' }), el('div', { className: 'desc', textContent: c.necesidad }));
 
   const sel = el('select'); for (const [k, v] of Object.entries(ESTADOS)) sel.append(el('option', { value: k, textContent: v, selected: k === c.estado }));

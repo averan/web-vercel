@@ -19,8 +19,12 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get('CONTACTOS_DB') or os.path.join(ROOT, 'datos', 'contactos.db')
 
 # campo -> largo máximo
-CAMPOS = {'nombre': 120, 'empresa': 160, 'cargo': 120, 'correo': 200, 'telefono': 60, 'interes': 200, 'necesidad': 3000}
+CAMPOS = {'nombre': 120, 'empresa': 160, 'cargo': 120, 'correo': 200, 'telefono': 60, 'interes': 200, 'necesidad': 3000,
+          'otro': 200, 'preferencia': 120}
+# obligatorios por defecto (Faena); cada sitio puede definir los suyos en su archivo de sitios/
 OBLIGATORIOS = ('nombre', 'empresa', 'correo', 'necesidad')
+# columnas agregadas después de crear la tabla (se añaden solas a las bases existentes)
+COLUMNAS_NUEVAS = ('sitio', 'otro', 'preferencia')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS contactos (
@@ -36,7 +40,9 @@ CREATE TABLE IF NOT EXISTS contactos (
     necesidad    TEXT NOT NULL,
     conversacion TEXT,                      -- JSON [{rol, texto}]
     ip           TEXT,
-    sitio        TEXT                       -- dominio de la página donde se hizo la solicitud
+    sitio        TEXT,                      -- dominio de la página donde se hizo la solicitud
+    otro         TEXT,                      -- otro medio de contacto (WhatsApp, LinkedIn, Telegram…)
+    preferencia  TEXT                       -- cómo prefiere que lo contacten (llamada, Meet…)
 );
 CREATE TABLE IF NOT EXISTS notas (          -- historial de gestión (cambios de estado y notas)
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,10 +63,12 @@ def connect(path=DB_PATH):
     db = sqlite3.connect(path, timeout=10, isolation_level=None)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
-    if 'sitio' not in {r[1] for r in db.execute('PRAGMA table_info(contactos)')}:  # bases creadas antes de esta columna
-        db.execute('ALTER TABLE contactos ADD COLUMN sitio TEXT')
-        # hasta ahora el asistente solo estaba en la web de Faena en Vercel
-        db.execute("UPDATE contactos SET sitio = 'web-vercel-zeta-red.vercel.app' WHERE sitio IS NULL")
+    existentes = {r[1] for r in db.execute('PRAGMA table_info(contactos)')}
+    for col in COLUMNAS_NUEVAS:  # bases creadas antes de estas columnas
+        if col not in existentes:
+            db.execute(f'ALTER TABLE contactos ADD COLUMN {col} TEXT')
+            if col == 'sitio':  # hasta entonces el asistente solo estaba en la web de Faena en Vercel
+                db.execute("UPDATE contactos SET sitio = 'web-vercel-zeta-red.vercel.app' WHERE sitio IS NULL")
     return db
 
 
@@ -72,8 +80,8 @@ def crear(db, datos, conversacion, ip, sitio=''):
         ultimo = db.execute("SELECT MAX(CAST(SUBSTR(id, 5) AS INTEGER)) FROM contactos").fetchone()[0] or 0
         cid = f'FAE-{ultimo + 1:04d}'
         db.execute(
-            'INSERT INTO contactos (id, fecha, nombre, empresa, cargo, correo, telefono, interes, necesidad, conversacion, ip, sitio) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            f'INSERT INTO contactos (id, fecha, {", ".join(CAMPOS)}, conversacion, ip, sitio) '
+            f'VALUES (?, ?, {", ".join("?" * len(CAMPOS))}, ?, ?, ?)',
             (cid, fecha, *(datos.get(k, '') for k in CAMPOS), json.dumps(conversacion, ensure_ascii=False), ip, sitio))
         db.execute('COMMIT')
     except Exception:
@@ -83,12 +91,13 @@ def crear(db, datos, conversacion, ip, sitio=''):
 
 
 def listar(db, estado='', texto=''):
-    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, interes, sitio FROM contactos WHERE 1=1', []
+    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, otro, preferencia, interes, sitio FROM contactos WHERE 1=1', []
     if estado:
         sql += ' AND estado = ?'; args.append(estado)
     if texto:
-        sql += ' AND (nombre LIKE ? OR empresa LIKE ? OR correo LIKE ? OR interes LIKE ? OR necesidad LIKE ? OR sitio LIKE ?)'
-        args += [f'%{texto}%'] * 6
+        cols = ('nombre', 'empresa', 'correo', 'telefono', 'otro', 'interes', 'necesidad', 'sitio')
+        sql += ' AND (' + ' OR '.join(f'{c} LIKE ?' for c in cols) + ')'
+        args += [f'%{texto}%'] * len(cols)
     return db.execute(sql + ' ORDER BY fecha DESC, id DESC LIMIT 500', args).fetchall()
 
 
@@ -138,14 +147,15 @@ def main():
         if not filas:
             return print(f'No hay solicitudes de contacto todavía ({DB_PATH}).')
         for r in filas:
-            print(f"{r['id']}  {r['fecha'][:16].replace('T', ' ')}  {r['estado']:<9}  {r['nombre']} · {r['empresa']} <{r['correo']}>"
+            medio = ' / '.join(v for v in (r['correo'], r['telefono'], r['otro']) if v and not v.lower().startswith('no informad'))
+            print(f"{r['id']}  {r['fecha'][:16].replace('T', ' ')}  {r['estado']:<9}  {r['nombre']} · {r['empresa']} <{medio}>"
                   + (f"  [{r['interes']}]" if r['interes'] else '') + (f"  · {r['sitio']}" if r['sitio'] else ''))
         return print(f'\n{len(filas)} solicitud(es) · {DB_PATH}')
     if cmd == 'ver' and len(sys.argv) > 2:
         r = db.execute('SELECT * FROM contactos WHERE id = ?', (sys.argv[2].upper(),)).fetchone()
         if not r:
             return print('No existe esa solicitud.')
-        for k in ('id', 'fecha', 'estado', 'sitio', 'nombre', 'empresa', 'cargo', 'correo', 'telefono', 'interes', 'necesidad', 'ip'):
+        for k in ('id', 'fecha', 'estado', 'sitio', 'nombre', 'empresa', 'cargo', 'correo', 'telefono', 'otro', 'preferencia', 'interes', 'necesidad', 'ip'):
             print(f'{k:>10}: {r[k] or "-"}')
         print('\nConversación:')
         for m in json.loads(r['conversacion'] or '[]'):
