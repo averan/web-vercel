@@ -3,21 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mi sitio en Vercel</title>
-  <meta name="description" content="Página web simple publicada en Vercel.">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>Faena Growth Partner</title>
+  <meta name="description" content="Mentores ejecutivos fraccionales para empresas tecnológicas B2B: estrategia, ventas, operación, RRHH, finanzas y transformación digital.">
+  <link rel="icon" href="/img/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/img/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/img/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <meta name="theme-color" content="#0B1F33">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <header class="top">
     <div class="container nav">
-      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28"> Mi sitio</a>
+      <a class="brand" href="/" aria-label="Faena CS - Consulting Services">
+        <img src="/img/faena-symbol.png" alt="" width="44" height="44">
+        <img src="/img/faena-wordmark.png" alt="Faena CS" width="116" height="40">
+      </a>
       <nav>
+        <a href="#objetivo">Nosotros</a>
         <a href="#servicios">Servicios</a>
-        <a href="#contacto">Contacto</a>
+        <a href="#proceso">Proceso</a>
+        <a class="btn primary sm" href="#contacto">Agendar</a>
       </nav>
     </div>
   </header>
@@ -25,50 +34,88 @@
   <main>
     <section class="hero">
       <div class="container">
-        <p class="eyebrow">Publicado en Vercel</p>
-        <h1>Una página simple, rápida y en internet</h1>
-        <p class="lead">Sitio estático en HTML y CSS, servido desde la red global de Vercel con HTTPS incluido.</p>
+        <p class="eyebrow">Faena Growth Partner</p>
+        <h1>Desarrollemos juntos el potencial de tu empresa</h1>
+        <p class="lead">Ejecutivos fraccionales con experiencia real que ayudan a empresas tecnológicas B2B a ordenar su operación, mejorar su rentabilidad y escalar, sin necesidad de contratar ejecutivos a tiempo completo.</p>
         <div class="actions">
-          <a class="btn primary" href="#servicios">Ver más</a>
-          <a class="btn ghost" href="#contacto">Contacto</a>
+          <a class="btn primary" href="#contacto">Agendar conversación →</a>
+          <a class="btn outline" href="#proceso">Cómo funciona</a>
         </div>
       </div>
     </section>
 
-    <section id="servicios" class="section">
+    <section id="objetivo" class="section white">
+      <div class="container about">
+        <div>
+          <p class="eyebrow">Nuestro objetivo</p>
+          <h2>Que las empresas tecnológicas B2B crezcan con estructura</h2>
+          <p>Faena es una firma de crecimiento empresarial. Combinamos experiencia en estrategia, ventas, operaciones y transformación para que tu empresa escale de forma ordenada, rentable y sostenible, con el mejor talento ejecutivo de Latinoamérica.</p>
+          <p class="quote">No vendemos horas. Construimos crecimiento.</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><strong>25+</strong><span>Años de experiencia</span></div>
+          <div class="stat"><strong>5</strong><span>Países en LATAM</span></div>
+          <div class="stat"><strong>6</strong><span>Áreas de especialidad</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="servicios" class="section soft">
       <div class="container">
-        <h2>Qué ofrece</h2>
+        <div class="head">
+          <p class="eyebrow">Un modelo diferente de consultoría</p>
+          <h2>Nos integramos a tu equipo para generar resultados</h2>
+        </div>
         <div class="cards">
-          <article class="card">
-            <span class="icon">⚡</span>
-            <h3>Rápido</h3>
-            <p>Archivos estáticos servidos desde la CDN de Vercel, cerca de cada visitante.</p>
-          </article>
-          <article class="card">
-            <span class="icon">🔒</span>
-            <h3>Seguro</h3>
-            <p>HTTPS automático y cabeceras de seguridad configuradas en <code>vercel.json</code>.</p>
-          </article>
-          <article class="card">
-            <span class="icon">🚀</span>
-            <h3>Fácil de actualizar</h3>
-            <p>Cada cambio se publica con un solo comando o con un push a GitHub.</p>
-          </article>
+          <article class="card"><span class="icon">🎯</span><h3>Estrategia</h3><p>Roadmap y objetivos claros para crecer con foco.</p></article>
+          <article class="card"><span class="icon">📈</span><h3>Ventas</h3><p>Pipeline y procesos comerciales que convierten.</p></article>
+          <article class="card"><span class="icon">⚙️</span><h3>Operación</h3><p>Procesos estructurados para escalar con eficiencia.</p></article>
+          <article class="card"><span class="icon">👥</span><h3>RRHH</h3><p>Desarrollo organizacional y gestión del talento.</p></article>
+          <article class="card"><span class="icon">💼</span><h3>Finanzas</h3><p>Control financiero y mejor uso de los recursos.</p></article>
+          <article class="card"><span class="icon">💡</span><h3>Transformación Digital</h3><p>Adopción tecnológica y modernización de procesos.</p></article>
         </div>
       </div>
     </section>
 
-    <section id="contacto" class="section alt">
+    <section id="proceso" class="section navy">
+      <div class="container">
+        <div class="head">
+          <p class="eyebrow light">Cómo trabajamos</p>
+          <h2>Un proceso estructurado para resultados predecibles</h2>
+        </div>
+        <ol class="steps">
+          <li><span>Paso 01</span><h3>Assessment estratégico</h3><p>Diagnóstico profundo de tu empresa.</p></li>
+          <li><span>Paso 02</span><h3>Plan de crecimiento</h3><p>Roadmap personalizado con métricas claras.</p></li>
+          <li><span>Paso 03</span><h3>Ejecución acompañada</h3><p>Implementación junto a mentores dedicados.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section white">
+      <div class="container cta">
+        <h2>Tu empresa puede crecer más rápido con la estructura correcta.</h2>
+        <a class="btn primary" href="#contacto">Agendar diagnóstico</a>
+      </div>
+    </section>
+
+    <section id="contacto" class="section soft">
       <div class="container contact">
-        <h2>Contacto</h2>
-        <p>Escríbenos y te responderemos pronto.</p>
-        <a class="btn primary" href="mailto:hola@ejemplo.com">hola@ejemplo.com</a>
+        <p class="eyebrow">Conversemos</p>
+        <h2>Cuéntanos sobre tu empresa</h2>
+        <p>Respondemos en menos de 48 horas hábiles.</p>
+        <a class="btn primary" href="mailto:soporte@faenacs.com">soporte@faenacs.com</a>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="container">© <span id="year">2026</span> Mi sitio · Hecho con HTML y CSS</div>
+    <div class="container foot">
+      <div class="foot-brand">
+        <img src="/img/faena-symbol.png" alt="" width="40" height="40">
+        <div><strong>Faena</strong><span>Impulsando transformación, entregando claridad</span></div>
+      </div>
+      <div class="foot-copy">© <span id="year">2026</span> Faena Growth Partner</div>
+    </div>
   </footer>
 
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>

@@ -1,12 +1,12 @@
 # web-vercel
 
-Página web estática (HTML + CSS, sin build) lista para publicar en [Vercel](https://vercel.com).
+Sitio de **Faena Growth Partner** (look & feel de faenacs.com): página estática en HTML + CSS, sin build, lista para publicar en [Vercel](https://vercel.com).
 
 ```
 index.html      Página principal
 404.html        Página de error (Vercel la usa automáticamente)
-css/styles.css  Estilos (modo claro/oscuro automático)
-favicon.svg     Icono
+css/styles.css  Estilos (colores y tipografía de Faena)
+img/            Logo (símbolo + wordmark) y favicons de Faena
 vercel.json     URLs limpias y cabeceras de seguridad
 ```
 
