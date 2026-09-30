@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi sitio en Vercel</title>
+  <meta name="description" content="Página web simple publicada en Vercel.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="container nav">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28"> Mi sitio</a>
+      <nav>
+        <a href="#servicios">Servicios</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <p class="eyebrow">Publicado en Vercel</p>
+        <h1>Una página simple, rápida y en internet</h1>
+        <p class="lead">Sitio estático en HTML y CSS, servido desde la red global de Vercel con HTTPS incluido.</p>
+        <div class="actions">
+          <a class="btn primary" href="#servicios">Ver más</a>
+          <a class="btn ghost" href="#contacto">Contacto</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="servicios" class="section">
+      <div class="container">
+        <h2>Qué ofrece</h2>
+        <div class="cards">
+          <article class="card">
+            <span class="icon">⚡</span>
+            <h3>Rápido</h3>
+            <p>Archivos estáticos servidos desde la CDN de Vercel, cerca de cada visitante.</p>
+          </article>
+          <article class="card">
+            <span class="icon">🔒</span>
+            <h3>Seguro</h3>
+            <p>HTTPS automático y cabeceras de seguridad configuradas en <code>vercel.json</code>.</p>
+          </article>
+          <article class="card">
+            <span class="icon">🚀</span>
+            <h3>Fácil de actualizar</h3>
+            <p>Cada cambio se publica con un solo comando o con un push a GitHub.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="contacto" class="section alt">
+      <div class="container contact">
+        <h2>Contacto</h2>
+        <p>Escríbenos y te responderemos pronto.</p>
+        <a class="btn primary" href="mailto:hola@ejemplo.com">hola@ejemplo.com</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">© <span id="year">2026</span> Mi sitio · Hecho con HTML y CSS</div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
