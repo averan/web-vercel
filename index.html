@@ -14,7 +14,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/assistant/assistant.css">
 </head>
 <body>
   <header class="top">
@@ -127,9 +126,7 @@
     document.getElementById('year').textContent = new Date().getFullYear();
     document.querySelectorAll('[data-open-assistant]').forEach(b => b.addEventListener('click', () => window.omlxAssistant?.open()));
   </script>
-  <!-- Asistente: backend.js (dirección del Mac, la genera servidor/publicar.sh) + configuración + widget -->
-  <script src="/backend.js"></script>
-  <script src="/config.js"></script>
-  <script src="/assistant/assistant.js"></script>
+  <!-- Asistente Faena-Bot: la misma línea sirve para integrarlo en cualquier otra web (ver embed.js) -->
+  <script src="/embed.js" defer></script>
 </body>
 </html>

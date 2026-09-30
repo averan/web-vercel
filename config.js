@@ -2,9 +2,12 @@
 // El prompt (qué sabe y cómo responde) NO está aquí: lo pone el servidor del Mac
 // desde servidor/contexto.md, para que no sea público ni se pueda cambiar desde el navegador.
 (() => {
+  // Sitio desde el que se cargó este archivo (Vercel, o localhost al probar). Las imágenes se piden
+  // siempre ahí, así el widget funciona también integrado en otras páginas (ver embed.js).
+  const origin = new URL(document.currentScript?.src || location.href).origin;
   // backend.js (lo genera servidor/publicar.sh) trae la dirección del túnel hacia el Mac.
-  // Al probar en local (localhost:5190) se usa el backend local directamente.
-  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:5194' : '';
+  // Al probar en local (web servida en localhost:5190) se usa el backend local directamente.
+  const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? 'http://localhost:5194' : '';
   const backend = window.FAENA_BACKEND || local;
 
   window.OMLX_ASSISTANT = {
@@ -15,7 +18,7 @@
 
     assistantName: 'Asistente Faena',
     modelLabel: 'Faena-Bot',
-    avatar: '/img/faena-symbol.png',
+    avatar: origin + '/img/faena-symbol.png',
     greeting: 'Hola, soy Faena-Bot. Te cuento cómo ayudamos a empresas tecnológicas a crecer con estructura, o te conecto con un socio de Faena. ¿Qué desafío tiene hoy tu empresa?',
     suggestions: ['¿Qué es un ejecutivo fraccional?', '¿Cómo trabajan?', 'Quiero agendar una conversación'],
 

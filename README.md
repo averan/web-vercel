@@ -10,6 +10,7 @@ img/            Logo (símbolo + wordmark) y favicons de Faena
 vercel.json     URLs limpias y cabeceras de seguridad
 assistant/      Widget del asistente (Faena-Bot)
 config.js       Configuración del widget (nombre, saludo, sugerencias…)
+embed.js        Integra el asistente en cualquier web con una línea
 backend.js      Dirección del backend del asistente (la genera servidor/publicar.sh)
 servidor/       Backend del asistente que corre en el Mac (Vercel no lo publica)
 ```
@@ -78,3 +79,26 @@ por visitante, de generaciones simultáneas y de tokens; el chat no puede usar h
 
 **Probar en local:** `python3 servidor/server.py` y `python3 -m http.server 5190`;
 en `localhost:5190` el widget usa el backend local automáticamente.
+
+## Integrar el asistente en otra página web
+
+1. **Autoriza el dominio** en `servidor/.env` (exacto, con `https://`, sin barra final) y reinicia `./servidor/publicar.sh`:
+   ```
+   ALLOWED_ORIGINS=https://web-vercel-zeta-red.vercel.app,http://localhost:5190,https://www.ejemplo.com
+   ```
+   `ejemplo.com` y `www.ejemplo.com` son orígenes distintos. Sin este paso el widget aparece pero dice «Asistente no disponible».
+2. **Pega una línea** antes de `</body>` (WordPress: plugin WPCode → footer; Shopify: `theme.liquid`; Wix/Squarespace: código personalizado del pie):
+   ```html
+   <script src="https://web-vercel-zeta-red.vercel.app/embed.js" defer></script>
+   ```
+3. **Opcional — personalizar** para ese sitio (antes de la línea anterior):
+   ```html
+   <script>window.FAENA_BOT = { greeting: '¡Hola!', suggestions: ['¿Cómo trabajan?'] };</script>
+   ```
+4. **Opcional — abrirlo desde un botón propio:** `<button onclick="omlxAssistant.open()">Hablar con Faena-Bot</button>`
+   (también `omlxAssistant.close()`, `.toggle()` y `.reset()`).
+
+`embed.js` carga los estilos, `backend.js` (dirección vigente del túnel), `config.js` y el widget desde Vercel,
+así cada sitio recibe siempre la última versión sin copiar archivos. Si el sitio tiene una política CSP, debe permitir
+scripts de `web-vercel-zeta-red.vercel.app` y conexiones a `*.trycloudflare.com`. Las solicitudes de todos los sitios
+llegan a la misma página de gestión (http://localhost:5195).
