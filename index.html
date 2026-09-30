@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/assistant/assistant.css">
 </head>
 <body>
   <header class="top">
@@ -41,6 +42,7 @@
           <a class="btn primary" href="#contacto">Agendar conversación →</a>
           <a class="btn outline" href="#proceso">Cómo funciona</a>
         </div>
+        <button class="chat-link" type="button" data-open-assistant>💬 ¿Dudas? Habla ahora con Faena-Bot</button>
       </div>
     </section>
 
@@ -103,7 +105,10 @@
         <p class="eyebrow">Conversemos</p>
         <h2>Cuéntanos sobre tu empresa</h2>
         <p>Respondemos en menos de 48 horas hábiles.</p>
-        <a class="btn primary" href="mailto:soporte@faenacs.com">soporte@faenacs.com</a>
+        <div class="actions center">
+          <a class="btn primary" href="mailto:soporte@faenacs.com">soporte@faenacs.com</a>
+          <button class="btn outline" type="button" data-open-assistant>Hablar con Faena-Bot</button>
+        </div>
       </div>
     </section>
   </main>
@@ -118,6 +123,13 @@
     </div>
   </footer>
 
-  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    document.querySelectorAll('[data-open-assistant]').forEach(b => b.addEventListener('click', () => window.omlxAssistant?.open()));
+  </script>
+  <!-- Asistente: backend.js (dirección del Mac, la genera servidor/publicar.sh) + configuración + widget -->
+  <script src="/backend.js"></script>
+  <script src="/config.js"></script>
+  <script src="/assistant/assistant.js"></script>
 </body>
 </html>

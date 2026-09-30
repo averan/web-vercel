@@ -134,3 +134,12 @@ h2 { font-size: clamp(28px, 3.6vw, 38px); line-height: 1.2; margin: 0 0 18px; fo
   .section { padding: 72px 0; }
   .actions .btn { flex: 1 1 100%; text-align: center; }
 }
+
+/* Enlaces que abren el asistente */
+.chat-link {
+  margin-top: 22px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--blue);
+}
+.chat-link:hover { text-decoration: underline; }
+.actions.center { justify-content: center; }
+button.btn { font: inherit; font-weight: 500; cursor: pointer; }

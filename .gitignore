@@ -1,3 +1,6 @@
 .vercel
 .DS_Store
 .env*
+!servidor/.env.example
+servidor/datos/
+__pycache__/
