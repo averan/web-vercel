@@ -2,8 +2,8 @@
 """
 Base de datos de solicitudes de contacto del asistente de Faena (SQLite).
 
-La usa server.py para registrar las solicitudes que los visitantes validan en el chat.
-También se puede usar sola para verlas:
+La usan server.py (registrar las solicitudes que los visitantes validan en el chat) y
+gestion.py (página de gestión en http://localhost:5195). También se puede usar sola:
     python3 contactos.py listar          (todas, las más recientes primero)
     python3 contactos.py ver FAE-0001    (detalle con la conversación)
 
@@ -37,7 +37,18 @@ CREATE TABLE IF NOT EXISTS contactos (
     conversacion TEXT,                      -- JSON [{rol, texto}]
     ip           TEXT
 );
+CREATE TABLE IF NOT EXISTS notas (          -- historial de gestión (cambios de estado y notas)
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contacto_id TEXT NOT NULL REFERENCES contactos(id),
+    fecha       TEXT NOT NULL,
+    texto       TEXT NOT NULL
+);
 """
+ESTADOS = {'nuevo': 'Nuevo', 'contactado': 'Contactado', 'en_curso': 'En conversación', 'cerrado': 'Cerrado'}
+
+
+class Error(Exception):
+    """Error que se muestra tal cual en la página de gestión."""
 
 
 def connect(path=DB_PATH):
@@ -66,8 +77,52 @@ def crear(db, datos, conversacion, ip):
     return cid, fecha
 
 
-def listar(db):
-    return db.execute('SELECT id, fecha, estado, nombre, empresa, correo, interes FROM contactos ORDER BY fecha DESC, id DESC').fetchall()
+def listar(db, estado='', texto=''):
+    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, interes FROM contactos WHERE 1=1', []
+    if estado:
+        sql += ' AND estado = ?'; args.append(estado)
+    if texto:
+        sql += ' AND (nombre LIKE ? OR empresa LIKE ? OR correo LIKE ? OR interes LIKE ? OR necesidad LIKE ?)'
+        args += [f'%{texto}%'] * 5
+    return db.execute(sql + ' ORDER BY fecha DESC, id DESC LIMIT 500', args).fetchall()
+
+
+def conteo(db):
+    return {r[0]: r[1] for r in db.execute('SELECT estado, COUNT(*) FROM contactos GROUP BY estado')}
+
+
+def obtener(db, cid):
+    r = db.execute('SELECT * FROM contactos WHERE id = ?', (cid.upper(),)).fetchone()
+    if not r:
+        raise Error(f'No existe la solicitud {cid}.')
+    out = dict(r)
+    out['conversacion'] = json.loads(r['conversacion'] or '[]')
+    out['notas'] = [dict(n) for n in db.execute('SELECT fecha, texto FROM notas WHERE contacto_id = ? ORDER BY id', (r['id'],))]
+    return out
+
+
+def actualizar(db, cid, estado=None, nota=None):
+    """Cambia el estado y/o agrega una nota. Cada cambio queda en el historial."""
+    actual = obtener(db, cid)
+    nota = (nota or '').strip()[:2000]
+    if estado and estado not in ESTADOS:
+        raise Error('Estado no válido.')
+    if not (estado and estado != actual['estado']) and not nota:
+        raise Error('Cambia el estado o escribe una nota.')
+    fecha = time.strftime('%Y-%m-%dT%H:%M:%S')
+    db.execute('BEGIN IMMEDIATE')
+    try:
+        if estado and estado != actual['estado']:
+            db.execute('UPDATE contactos SET estado = ? WHERE id = ?', (estado, actual['id']))
+            db.execute('INSERT INTO notas (contacto_id, fecha, texto) VALUES (?, ?, ?)',
+                       (actual['id'], fecha, f'Estado: {ESTADOS.get(actual["estado"], actual["estado"])} → {ESTADOS[estado]}'))
+        if nota:
+            db.execute('INSERT INTO notas (contacto_id, fecha, texto) VALUES (?, ?, ?)', (actual['id'], fecha, nota))
+        db.execute('COMMIT')
+    except Exception:
+        db.execute('ROLLBACK')
+        raise
+    return obtener(db, cid)
 
 
 def main():

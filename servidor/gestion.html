@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contactos · Faena</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0b1f33; --blue: #2f5bff; --cyan: #1fc8e3;
+  --bg: #f9fafb; --surface: #fff; --surface-2: #f1f5f9; --text: #0f1729; --muted: #64748b; --border: #e1e7ef;
+  --accent: #2f5bff; --accent-soft: #eef2ff;
+  --nuevo: #2f5bff; --contactado: #b7791f; --en_curso: #0e9aa7; --cerrado: #64748b;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+header { background: var(--surface); border-bottom: 3px solid var(--cyan); }
+.bar { max-width: 1280px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
+.bar .logo { height: 34px; width: auto; display: block; }
+.bar h1 { font-size: 17px; margin: 0; color: var(--navy); }
+.bar .sub { color: var(--muted); font-size: 12.5px; }
+.bar .right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; }
+main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; text-align: left; font: inherit; color: inherit; transition: border-color .15s; }
+.stat:hover, .stat.active { border-color: var(--accent); }
+.stat .k { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.stat .k i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.stat .v { font-size: 26px; font-weight: 700; margin-top: 2px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid rgba(47, 91, 255, .3); border-color: var(--accent); }
+.filters input[type=search] { flex: 1; min-width: 220px; }
+button, a.btn { font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 7px 14px; border: 1px solid var(--accent); background: var(--accent); color: #fff; text-decoration: none; display: inline-block; }
+button.ghost, a.btn.ghost { background: transparent; color: var(--navy); border-color: var(--border); font-weight: 500; }
+button:disabled { opacity: .5; cursor: default; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+td.wrap { white-space: normal; min-width: 180px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr.sel { background: var(--accent-soft); }
+tbody tr:last-child td { border-bottom: none; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.muted { color: var(--muted); }
+.strong { font-weight: 600; color: var(--navy); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--c); }
+.badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.empty { padding: 48px; text-align: center; color: var(--muted); }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -12px 0 40px rgba(11, 31, 51, .12); transform: translateX(100%); transition: transform .22s ease; display: flex; flex-direction: column; z-index: 10; }
+.drawer.open { transform: none; }
+.drawer-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: flex-start; }
+.drawer-head h2 { font-size: 18px; margin: 4px 0 0; color: var(--navy); }
+.drawer-head .x { margin-left: auto; padding: 4px 10px; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 18px 22px 24px; }
+.fields { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 0 0 14px; }
+.fields dt { color: var(--muted); font-size: 12.5px; }
+.fields dd { margin: 0; overflow-wrap: anywhere; }
+.quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 22px 0 10px; }
+.desc { background: var(--surface-2); border-left: 3px solid var(--cyan); border-radius: 6px; padding: 12px 14px; white-space: pre-wrap; }
+.actions { background: var(--surface-2); border-radius: 8px; padding: 14px; display: grid; gap: 10px; }
+.actions .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.actions textarea { width: 100%; min-height: 64px; resize: vertical; }
+.actions .msg { font-size: 12.5px; }
+.timeline { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--border); }
+.timeline li { position: relative; padding: 0 0 12px 16px; white-space: pre-wrap; }
+.timeline li::before { content: ''; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.timeline .when { font-size: 12px; color: var(--muted); }
+.chat { display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 88%; padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; }
+.bubble.user { align-self: flex-end; background: var(--navy); color: #fff; }
+.bubble.assistant { align-self: flex-start; background: var(--surface-2); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 9px 16px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+.toast.show { opacity: 1; }
+@media (max-width: 800px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } main, .bar { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <img src="/logo.png" alt="Faena CS" class="logo">
+    <div><h1>Solicitudes de contacto</h1><div class="sub">Asistente Faena-Bot · faenacs</div></div>
+    <div class="right"><span id="updated"></span><button class="ghost" id="refresh">Actualizar</button></div>
+  </div>
+</header>
+
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="filters">
+    <input type="search" id="q" placeholder="Buscar por nombre, empresa, correo, área o necesidad…">
+    <select id="f-estado"><option value="">Todos los estados</option></select>
+  </div>
+  <div class="card"><div class="table-wrap">
+    <table>
+      <thead><tr><th>N.º</th><th>Fecha</th><th>Estado</th><th>Contacto</th><th>Empresa</th><th>Correo</th><th>Área de interés</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div><div class="empty" id="empty" hidden>No hay solicitudes con estos filtros.</div></div>
+</main>
+
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div><div id="d-meta"></div><h2 id="d-title"></h2></div>
+    <button class="ghost x" id="d-close" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="drawer-body" id="d-body"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script>
+const ESTADOS = { nuevo: 'Nuevo', contactado: 'Contactado', en_curso: 'En conversación', cerrado: 'Cerrado' };
+const $ = s => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const fmt = iso => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }); };
+const blank = v => !v || /^no informad/i.test(v);
+const badge = e => el('span', { className: 'badge', textContent: ESTADOS[e] || e, style: `--c: var(--${e in ESTADOS ? e : 'cerrado'})` });
+function toast(t) { const n = $('#toast'); n.textContent = t; n.classList.add('show'); clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Gestion': '1' } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Error ' + res.status);
+  return data;
+}
+
+let current = null, estadoFiltro = '';
+
+async function load() {
+  const qs = new URLSearchParams();
+  if (estadoFiltro) qs.set('estado', estadoFiltro);
+  if ($('#q').value.trim()) qs.set('texto', $('#q').value.trim());
+  let data;
+  try { data = await api('/api/contactos?' + qs); }
+  catch (e) { toast('No se pudo cargar: ' + e.message); return; }
+  renderStats(data.conteo || {});
+  const tb = $('#rows'); tb.innerHTML = '';
+  for (const c of data.contactos) {
+    const tr = el('tr', {},
+      el('td', { className: 'mono', textContent: c.id }),
+      el('td', { className: 'muted', textContent: fmt(c.fecha) }),
+      el('td', {}, badge(c.estado)),
+      el('td', {}, el('div', { className: 'strong', textContent: c.nombre }), el('div', { className: 'muted', textContent: blank(c.cargo) ? '' : c.cargo })),
+      el('td', { textContent: c.empresa }),
+      el('td', {}, el('div', { textContent: c.correo }), el('div', { className: 'muted', textContent: blank(c.telefono) ? '' : c.telefono })),
+      el('td', { className: 'wrap muted', textContent: c.interes || '—' }));
+    if (c.id === current) tr.classList.add('sel');
+    tr.onclick = () => openContact(c.id);
+    tb.append(tr);
+  }
+  $('#empty').hidden = data.contactos.length > 0;
+  $('#updated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es', { timeStyle: 'short' });
+}
+
+function renderStats(c) {
+  const items = [['', 'Todas', Object.values(c).reduce((a, b) => a + b, 0), 'var(--navy)'],
+    ...Object.entries(ESTADOS).map(([k, v]) => [k, v, c[k] || 0, `var(--${k})`])];
+  const box = $('#stats'); box.innerHTML = '';
+  for (const [k, label, n, color] of items) {
+    const b = el('button', { className: 'stat' + (estadoFiltro === k ? ' active' : ''), type: 'button' },
+      el('div', { className: 'k', style: `--c: ${color}` }, el('i'), label), el('div', { className: 'v', textContent: n }));
+    b.onclick = () => { estadoFiltro = k; $('#f-estado').value = k; load(); };
+    box.append(b);
+  }
+}
+
+async function openContact(id) {
+  current = id;
+  document.querySelectorAll('tbody tr').forEach(tr => tr.classList.toggle('sel', tr.firstChild.textContent === id));
+  let c;
+  try { c = await api('/api/contactos/' + encodeURIComponent(id)); }
+  catch (e) { toast(e.message); return; }
+  $('#d-meta').replaceChildren(el('span', { className: 'mono muted', textContent: c.id + '  ' }), badge(c.estado));
+  $('#d-title').textContent = `${c.nombre} · ${c.empresa}`;
+  const body = $('#d-body'); body.innerHTML = '';
+
+  const dl = el('dl', { className: 'fields' });
+  for (const [k, v] of [['Nombre', c.nombre], ['Cargo', c.cargo], ['Empresa', c.empresa], ['Correo', c.correo], ['Teléfono', c.telefono],
+    ['Área de interés', c.interes], ['Recibida', fmt(c.fecha)]])
+    dl.append(el('dt', { textContent: k }), el('dd', { textContent: blank(v) ? '—' : v }));
+  const asunto = encodeURIComponent('Faena Growth Partner · tu solicitud ' + c.id);
+  const saludo = encodeURIComponent(`Hola ${c.nombre.split(' ')[0]}:\n\nGracias por contactarnos a través de nuestro sitio. `);
+  const quick = el('div', { className: 'quick' }, el('a', { className: 'btn', href: `mailto:${c.correo}?subject=${asunto}&body=${saludo}`, textContent: '✉️ Responder por correo' }));
+  if (!blank(c.telefono)) quick.append(el('a', { className: 'btn ghost', href: 'tel:' + c.telefono.replace(/[^\d+]/g, ''), textContent: '📞 ' + c.telefono }));
+  body.append(dl, quick, el('h3', { textContent: 'Necesidad' }), el('div', { className: 'desc', textContent: c.necesidad }));
+
+  const sel = el('select'); for (const [k, v] of Object.entries(ESTADOS)) sel.append(el('option', { value: k, textContent: v, selected: k === c.estado }));
+  const txt = el('textarea', { placeholder: 'Nota para el historial (opcional): p. ej. «Llamé, reunión el jueves»…' });
+  const save = el('button', { type: 'button', textContent: 'Guardar' });
+  const msg = el('span', { className: 'msg muted' });
+  save.onclick = async () => {
+    const args = {};
+    if (sel.value !== c.estado) args.estado = sel.value;
+    if (txt.value.trim()) args.nota = txt.value.trim();
+    if (!Object.keys(args).length) { msg.textContent = 'Cambia el estado o escribe una nota.'; return; }
+    save.disabled = true; msg.textContent = 'Guardando…';
+    try { await api('/api/contactos/' + encodeURIComponent(c.id), { method: 'POST', body: JSON.stringify(args) }); toast(`${c.id} actualizada`); await load(); await openContact(c.id); }
+    catch (e) { msg.textContent = e.message; save.disabled = false; }
+  };
+  body.append(el('h3', { textContent: 'Gestionar' }),
+    el('div', { className: 'actions' }, el('div', { className: 'row' }, el('label', { className: 'muted', textContent: 'Estado' }), sel), txt, el('div', { className: 'row' }, save, msg)));
+
+  if (c.notas.length) {
+    const ul = el('ul', { className: 'timeline' });
+    for (const n of c.notas) ul.append(el('li', {}, el('div', { className: 'when', textContent: fmt(n.fecha) }), el('div', { textContent: n.texto })));
+    body.append(el('h3', { textContent: 'Historial' }), ul);
+  }
+  if (c.conversacion.length) {
+    const chat = el('div', { className: 'chat' });
+    for (const m of c.conversacion) chat.append(el('div', { className: 'bubble ' + (m.rol === 'user' ? 'user' : 'assistant'), textContent: m.texto || '' }));
+    body.append(el('h3', { textContent: 'Conversación con Faena-Bot' }), chat);
+  }
+  $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false');
+}
+
+function closeDrawer() { current = null; $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); document.querySelectorAll('tbody tr.sel').forEach(tr => tr.classList.remove('sel')); }
+
+for (const [k, v] of Object.entries(ESTADOS)) $('#f-estado').append(el('option', { value: k, textContent: v }));
+$('#f-estado').onchange = e => { estadoFiltro = e.target.value; load(); };
+let qTimer; $('#q').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(load, 250); };
+$('#refresh').onclick = load;
+$('#d-close').onclick = closeDrawer;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+load();
+setInterval(() => { if (!document.hidden) load(); }, 15000);
+</script>
+</body>
+</html>

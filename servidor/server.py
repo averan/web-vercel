@@ -48,6 +48,7 @@ def load_env(path):
 
 ENV = {**load_env(os.path.join(ROOT, '.env')), **os.environ}
 PORT = int(ENV.get('PORT', 5194))
+ADMIN_PORT = int(ENV.get('ADMIN_PORT', 5195))  # página de gestión de contactos, solo local (0 = desactivada)
 OMLX = urlsplit(ENV.get('OMLX_URL', 'http://127.0.0.1:8000'))
 API_KEY = ENV.get('OMLX_API_KEY', '')
 MAX_TOKENS = int(ENV.get('MAX_TOKENS', 1024))
@@ -327,6 +328,13 @@ def main():
     print(f'Backend del asistente en http://localhost:{PORT}  →  oMLX en {OMLX.geturl()}  '
           f'(máx. {MAX_CONCURRENT} simultáneas, {RATE_PER_MIN} msg/min por visitante, max_tokens {MAX_TOKENS})', flush=True)
     print(f'Orígenes permitidos: {", ".join(sorted(ALLOWED_ORIGINS))}', flush=True)
+    if ADMIN_PORT:
+        import gestion  # página de gestión de contactos: puerto aparte, nunca publicado por el túnel
+        try:
+            gestion.start(ADMIN_PORT)
+            print(f'Gestión de contactos en http://localhost:{ADMIN_PORT}  (solo desde este Mac)', flush=True)
+        except OSError:
+            print(f'Aviso: el puerto {ADMIN_PORT} está ocupado; la página de gestión no se inició.', flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

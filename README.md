@@ -58,13 +58,14 @@ Arranca el backend, abre un túnel y sube a GitHub la nueva dirección en `backe
 Vercel se actualiza solo en ~30 s. Con **Ctrl+C** se desconecta y la web muestra
 «asistente no disponible» con el correo de contacto.
 
-**Ver las solicitudes de contacto:**
+**Ver y gestionar las solicitudes de contacto:** abre **http://localhost:5195** en este Mac
+(se inicia junto con el backend; no se publica en internet). Muestra la lista con filtros por
+estado y búsqueda, el detalle con la necesidad y la conversación con Faena-Bot, un botón para
+responder por correo, y permite cambiar el estado (Nuevo → Contactado → En conversación →
+Cerrado) y dejar notas en el historial.
 
-```bash
-python3 servidor/contactos.py listar
-```
-
-y el detalle con la conversación: `python3 servidor/contactos.py ver FAE-0001`.
+También desde la terminal: `python3 servidor/contactos.py listar` y
+`python3 servidor/contactos.py ver FAE-0001`.
 
 **Configuración:**
 - `servidor/.env` (no se sube a GitHub): API key de oMLX, orígenes permitidos y límites. Ver `servidor/.env.example`.

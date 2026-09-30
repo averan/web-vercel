@@ -86,7 +86,8 @@ else
   warn "Vercel aún no muestra la nueva dirección. Revisa el despliegue en vercel.com; el asistente se activará cuando termine."
 fi
 echo "  Backend local:  http://localhost:$PORT"
-echo "  Contactos:      python3 servidor/contactos.py listar"
+ADMIN_PORT=$(envget ADMIN_PORT); ADMIN_PORT=${ADMIN_PORT:-5195}
+[ "$ADMIN_PORT" != "0" ] && echo "  Contactos:      http://localhost:$ADMIN_PORT  (solo desde este Mac, no se publica)"
 echo "  Mantén este Mac encendido y oMLX en marcha. Ctrl+C para desconectar el asistente."
 echo
 echo "Consultas recibidas:"
