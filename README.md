@@ -70,7 +70,8 @@ También desde la terminal: `python3 servidor/contactos.py listar` y
 
 **Configuración:**
 - `servidor/.env` (no se sube a GitHub): API key de oMLX, orígenes permitidos y límites. Ver `servidor/.env.example`.
-- `servidor/contexto.md`: lo que sabe el asistente y cómo responde. Los cambios se aplican sin reiniciar.
+- `servidor/contexto.md`: lo que sabe el asistente de Faena y cómo responde; `servidor/sitios/`: el de cada sitio integrado;
+  `servidor/reglas-contacto.md`: formato de la solicitud y reglas comunes. Los cambios se aplican sin reiniciar.
 - `config.js`: nombre, saludo y preguntas sugeridas del widget.
 
 **Seguridad:** la API key nunca sale del Mac; el prompt lo pone el servidor (el navegador no
@@ -82,23 +83,45 @@ en `localhost:5190` el widget usa el backend local automáticamente.
 
 ## Integrar el asistente en otra página web
 
-1. **Autoriza el dominio** en `servidor/.env` (exacto, con `https://`, sin barra final) y reinicia `./servidor/publicar.sh`:
+1. **Crea el contexto del sitio** (esto también lo autoriza; no hace falta reiniciar):
+   ```bash
+   cp servidor/sitios/_plantilla.md servidor/sitios/www.ejemplo.com.md
    ```
-   ALLOWED_ORIGINS=https://web-vercel-zeta-red.vercel.app,http://localhost:5190,https://www.ejemplo.com
-   ```
-   `ejemplo.com` y `www.ejemplo.com` son orígenes distintos. Sin este paso el widget aparece pero dice «Asistente no disponible».
+   El nombre del archivo es el dominio exacto (`www.ejemplo.com` y `ejemplo.com` son distintos; si el sitio usa ambos,
+   crea los dos archivos). Edítalo con la identidad, los servicios, las preguntas frecuentes y el contacto de esa empresa.
+   Solo se aceptan sitios `https://`. Estos archivos no se suben a GitHub.
 2. **Pega una línea** antes de `</body>` (WordPress: plugin WPCode → footer; Shopify: `theme.liquid`; Wix/Squarespace: código personalizado del pie):
    ```html
    <script src="https://web-vercel-zeta-red.vercel.app/embed.js" defer></script>
    ```
-3. **Opcional — personalizar** para ese sitio (antes de la línea anterior):
+3. **Personaliza lo visible** (antes de la línea anterior):
    ```html
-   <script>window.FAENA_BOT = { greeting: '¡Hola!', suggestions: ['¿Cómo trabajan?'] };</script>
+   <script>
+     window.FAENA_BOT = {
+       assistantName: 'Asistente Ejemplo', modelLabel: 'Ejemplo-Bot',
+       greeting: '¡Hola! ¿En qué te ayudo?',
+       suggestions: ['¿Qué servicios tienen?', 'Quiero que me contacten'],
+       contactConfirmation: 'Te escribiremos a {correo} a la brevedad.',
+       unavailableMessage: 'El asistente no está disponible. Escríbenos a contacto@ejemplo.com.',
+       footnote: 'Asistente virtual de Ejemplo'
+     };
+   </script>
    ```
-4. **Opcional — abrirlo desde un botón propio:** `<button onclick="omlxAssistant.open()">Hablar con Faena-Bot</button>`
+4. **Opcional — abrirlo desde un botón propio:** `<button onclick="omlxAssistant.open()">Hablar con el asistente</button>`
    (también `omlxAssistant.close()`, `.toggle()` y `.reset()`).
 
-`embed.js` carga los estilos, `backend.js` (dirección vigente del túnel), `config.js` y el widget desde Vercel,
-así cada sitio recibe siempre la última versión sin copiar archivos. Si el sitio tiene una política CSP, debe permitir
-scripts de `web-vercel-zeta-red.vercel.app` y conexiones a `*.trycloudflare.com`. Las solicitudes de todos los sitios
-llegan a la misma página de gestión (http://localhost:5195).
+**Qué es de cada sitio y qué es común:**
+
+| Dónde | Qué define |
+|---|---|
+| `servidor/sitios/<dominio>.md` | Qué sabe el asistente y cómo habla (identidad, servicios, precios, FAQ, reglas propias). Sin archivo se usa `servidor/contexto.md` (Faena) |
+| `servidor/reglas-contacto.md` | Común a todos: formato de la solicitud de contacto y reglas generales (no editar el formato: el botón «Enviar solicitud» depende de él) |
+| `window.FAENA_BOT` en la página | Nombre, saludo, sugerencias, confirmación y avisos que ve el visitante |
+
+Los cambios en los `.md` se aplican en la siguiente consulta, sin reiniciar. Las solicitudes de todos los sitios llegan
+a la misma página de gestión (http://localhost:5195), con una columna **Sitio** que indica su origen.
+
+`embed.js` carga los estilos, `backend.js` (dirección vigente del túnel), `config.js` y el widget desde Vercel, así cada
+sitio recibe siempre la última versión. Si el sitio tiene una política CSP, debe permitir scripts de
+`web-vercel-zeta-red.vercel.app` y conexiones a `*.trycloudflare.com`. Alternativa a los archivos de `sitios/`: agregar
+el dominio a `ALLOWED_ORIGINS` en `servidor/.env` (usa el contexto de Faena y requiere reiniciar `publicar.sh`).

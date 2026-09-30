@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS contactos (
     interes      TEXT,
     necesidad    TEXT NOT NULL,
     conversacion TEXT,                      -- JSON [{rol, texto}]
-    ip           TEXT
+    ip           TEXT,
+    sitio        TEXT                       -- dominio de la página donde se hizo la solicitud
 );
 CREATE TABLE IF NOT EXISTS notas (          -- historial de gestión (cambios de estado y notas)
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,10 +57,14 @@ def connect(path=DB_PATH):
     db = sqlite3.connect(path, timeout=10, isolation_level=None)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
+    if 'sitio' not in {r[1] for r in db.execute('PRAGMA table_info(contactos)')}:  # bases creadas antes de esta columna
+        db.execute('ALTER TABLE contactos ADD COLUMN sitio TEXT')
+        # hasta ahora el asistente solo estaba en la web de Faena en Vercel
+        db.execute("UPDATE contactos SET sitio = 'web-vercel-zeta-red.vercel.app' WHERE sitio IS NULL")
     return db
 
 
-def crear(db, datos, conversacion, ip):
+def crear(db, datos, conversacion, ip, sitio=''):
     """Inserta una solicitud ya validada y devuelve (id, fecha). El número se asigna dentro de una transacción."""
     fecha = time.strftime('%Y-%m-%dT%H:%M:%S')
     db.execute('BEGIN IMMEDIATE')
@@ -67,9 +72,9 @@ def crear(db, datos, conversacion, ip):
         ultimo = db.execute("SELECT MAX(CAST(SUBSTR(id, 5) AS INTEGER)) FROM contactos").fetchone()[0] or 0
         cid = f'FAE-{ultimo + 1:04d}'
         db.execute(
-            'INSERT INTO contactos (id, fecha, nombre, empresa, cargo, correo, telefono, interes, necesidad, conversacion, ip) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            (cid, fecha, *(datos.get(k, '') for k in CAMPOS), json.dumps(conversacion, ensure_ascii=False), ip))
+            'INSERT INTO contactos (id, fecha, nombre, empresa, cargo, correo, telefono, interes, necesidad, conversacion, ip, sitio) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (cid, fecha, *(datos.get(k, '') for k in CAMPOS), json.dumps(conversacion, ensure_ascii=False), ip, sitio))
         db.execute('COMMIT')
     except Exception:
         db.execute('ROLLBACK')
@@ -78,12 +83,12 @@ def crear(db, datos, conversacion, ip):
 
 
 def listar(db, estado='', texto=''):
-    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, interes FROM contactos WHERE 1=1', []
+    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, interes, sitio FROM contactos WHERE 1=1', []
     if estado:
         sql += ' AND estado = ?'; args.append(estado)
     if texto:
-        sql += ' AND (nombre LIKE ? OR empresa LIKE ? OR correo LIKE ? OR interes LIKE ? OR necesidad LIKE ?)'
-        args += [f'%{texto}%'] * 5
+        sql += ' AND (nombre LIKE ? OR empresa LIKE ? OR correo LIKE ? OR interes LIKE ? OR necesidad LIKE ? OR sitio LIKE ?)'
+        args += [f'%{texto}%'] * 6
     return db.execute(sql + ' ORDER BY fecha DESC, id DESC LIMIT 500', args).fetchall()
 
 
@@ -134,13 +139,13 @@ def main():
             return print(f'No hay solicitudes de contacto todavía ({DB_PATH}).')
         for r in filas:
             print(f"{r['id']}  {r['fecha'][:16].replace('T', ' ')}  {r['estado']:<9}  {r['nombre']} · {r['empresa']} <{r['correo']}>"
-                  + (f"  [{r['interes']}]" if r['interes'] else ''))
+                  + (f"  [{r['interes']}]" if r['interes'] else '') + (f"  · {r['sitio']}" if r['sitio'] else ''))
         return print(f'\n{len(filas)} solicitud(es) · {DB_PATH}')
     if cmd == 'ver' and len(sys.argv) > 2:
         r = db.execute('SELECT * FROM contactos WHERE id = ?', (sys.argv[2].upper(),)).fetchone()
         if not r:
             return print('No existe esa solicitud.')
-        for k in ('id', 'fecha', 'estado', 'nombre', 'empresa', 'cargo', 'correo', 'telefono', 'interes', 'necesidad', 'ip'):
+        for k in ('id', 'fecha', 'estado', 'sitio', 'nombre', 'empresa', 'cargo', 'correo', 'telefono', 'interes', 'necesidad', 'ip'):
             print(f'{k:>10}: {r[k] or "-"}')
         print('\nConversación:')
         for m in json.loads(r['conversacion'] or '[]'):

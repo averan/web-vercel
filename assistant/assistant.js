@@ -24,6 +24,7 @@
     suggestions: [],     // preguntas sugeridas al empezar (si no hay contexto.js)
     unavailable: false,  // true = sin backend: muestra unavailableMessage y no intenta conectar
     unavailableMessage: 'En este momento el asistente no está disponible.',
+    contactConfirmation: 'Te contactaremos en {correo} a la brevedad.', // tras enviar la solicitud; {correo} y {id}
   }, window.OMLX_ASSISTANT || {});
   const base = (cfg.baseUrl || '').replace(/\/+$/, '');
 
@@ -585,7 +586,7 @@
       const { id } = await res.json();
       if (history !== convo) return;
       history[index].ticketId = id;
-      const note = `✅ **Solicitud enviada** (${id}). Un socio de Faena te contactará en ${t.correo} en menos de 48 horas hábiles.`;
+      const note = `✅ **Solicitud enviada** (${id}). ` + String(cfg.contactConfirmation).replace(/\{correo\}/g, t.correo).replace(/\{id\}/g, id);
       history.push({ role: 'assistant', content: note });
       saveHistory();
       bar.className = 'oa-ticket-bar oa-ticket-done';

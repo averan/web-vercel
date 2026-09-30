@@ -6,9 +6,11 @@ La página publicada en Vercel llama directamente a este servidor a través del
 túnel de Cloudflare (ver publicar.sh). Este servidor:
 - Reenvía a oMLX solo lo que usa el asistente, con la API key del .env
   (nunca llega al navegador).
-- Pone él mismo el prompt de sistema (contexto.md): se ignora el que envíe el
-  navegador, así el túnel no sirve como chat genérico.
-- Solo acepta peticiones de navegador desde los orígenes de ALLOWED_ORIGINS (CORS).
+- Pone él mismo el prompt de sistema: sitios/<dominio>.md (contexto de cada sitio que
+  integra el widget) o contexto.md (Faena), más reglas-contacto.md, común a todos.
+  Se ignora el que envíe el navegador, así el túnel no sirve como chat genérico.
+- Solo acepta peticiones de navegador desde los orígenes de ALLOWED_ORIGINS o con un
+  archivo en sitios/ (CORS).
 - Protege el Mac: límite de tamaño, de max_tokens, de generaciones simultáneas
   y de mensajes por minuto por visitante.
 - Registra las solicitudes de contacto validadas (POST /api/contactos) en
@@ -59,8 +61,16 @@ MAX_BODY = int(ENV.get('MAX_BODY_KB', 512)) * 1024   # el chat comercial no admi
 MAX_MESSAGES = 40                                     # historial que se envía al modelo
 ALLOWED_ORIGINS = {o.strip().rstrip('/') for o in ENV.get(
     'ALLOWED_ORIGINS', 'https://web-vercel-zeta-red.vercel.app,http://localhost:5190').split(',') if o.strip()}
-CONTEXT_FILE = os.path.join(ROOT, 'contexto.md')
+CONTEXT_FILE = os.path.join(ROOT, 'contexto.md')          # contexto predeterminado (Faena)
+COMMON_FILE = os.path.join(ROOT, 'reglas-contacto.md')   # formato de la solicitud y reglas: se agrega a todos
+SITES_DIR = os.path.join(ROOT, 'sitios')                 # un contexto por sitio: sitios/www.ejemplo.com.md
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+EMAIL_IN_TEXT = re.compile(r'[^@\s]+@[^@\s]+\.[a-z]{2,}', re.I)
+# Recordatorio que se agrega (solo hacia el modelo) al mensaje del visitante que trae un correo:
+# el modelo pequeño tiende a pedir datos opcionales en vez de presentar la solicitud.
+CONTACT_NUDGE = ('\n\n[Nota interna del sistema, no la menciones: este mensaje trae el correo del visitante. '
+                 'Si ya tienes su nombre y empresa, responde AHORA solo con el bloque «📋 Solicitud de contacto lista '
+                 'para enviar» (cargo y teléfono: "no informado" si no los dio; el área la eliges tú), sin hacer preguntas.]')
 
 slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 hits = defaultdict(deque)
@@ -69,10 +79,29 @@ models_cache = {'t': None, 'ids': set()}
 models_lock = threading.Lock()
 
 
-def system_prompt():
-    """Se lee en cada petición: los cambios en contexto.md se aplican sin reiniciar."""
-    with open(CONTEXT_FILE, encoding='utf-8') as f:
-        return f.read().strip()
+def site_file(origin):
+    """Contexto propio del sitio (sitios/<dominio>.md) o None. Solo https, salvo localhost para pruebas."""
+    url = urlsplit(origin or '')
+    host = (url.netloc or '').lower()
+    local = re.fullmatch(r'(localhost|127\.0\.0\.1)(:\d+)?', host)
+    if not re.fullmatch(r'[a-z0-9.-]+(:\d+)?', host) or not (url.scheme == 'https' or (local and url.scheme == 'http')):
+        return None
+    path = os.path.join(SITES_DIR, host.replace(':', '_') + '.md')
+    return path if os.path.isfile(path) else None
+
+
+def origin_allowed(origin):
+    """Autorizado si está en ALLOWED_ORIGINS o si tiene su archivo en sitios/ (no hace falta reiniciar)."""
+    return bool(origin) and (origin in ALLOWED_ORIGINS or site_file(origin) is not None)
+
+
+def system_prompt(origin=''):
+    """Contexto del sitio (o el predeterminado) + reglas comunes. Se leen en cada consulta:
+    los cambios se aplican sin reiniciar."""
+    with open(site_file(origin) or CONTEXT_FILE, encoding='utf-8') as f:
+        context = f.read().strip()
+    with open(COMMON_FILE, encoding='utf-8') as f:
+        return context + '\n\n' + f.read().strip()
 
 
 def rate_limited(key, limit=RATE_PER_MIN):
@@ -147,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def origin_ok(self):
         """Sin Origin (curl, comprobaciones de publicar.sh) o con un origen de la lista blanca."""
-        return not self.origin() or self.origin() in ALLOWED_ORIGINS
+        return not self.origin() or origin_allowed(self.origin())
 
     def send_json(self, status, obj):
         data = json.dumps(obj, ensure_ascii=False).encode()
@@ -162,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(status, {'error': {'message': message}})
 
     def end_headers(self):
-        if self.origin() in ALLOWED_ORIGINS:
+        if origin_allowed(self.origin()):
             self.send_header('Access-Control-Allow-Origin', self.origin())
         self.send_header('Vary', 'Origin')
         self.send_header('X-Content-Type-Options', 'nosniff')
@@ -174,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- rutas ----------
     def do_OPTIONS(self):  # preflight CORS
-        if not self.origin() or self.origin() not in ALLOWED_ORIGINS:
+        if not origin_allowed(self.origin()):
             return self.error(403, 'Origen no permitido')
         self.send_response(204)
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -243,13 +272,14 @@ class Handler(BaseHTTPRequestHandler):
         try:
             db = contactos.connect()
             try:
-                cid, fecha = contactos.crear(db, datos, conversacion, ip)
+                cid, fecha = contactos.crear(db, datos, conversacion, ip, urlsplit(self.origin()).netloc)
             finally:
                 db.close()
         except Exception as e:  # noqa: BLE001 — cualquier fallo del registro se informa igual al visitante
             print(f'{time.strftime("%H:%M:%S")}  CONTACTO ERROR  {e}', flush=True)
             return self.error(503, 'No se pudo registrar la solicitud en este momento. Inténtalo en unos minutos.')
-        print(f'{time.strftime("%H:%M:%S")}  CONTACTO {cid}  {datos["nombre"]} · {datos["empresa"]} <{datos["correo"]}>', flush=True)
+        print(f'{time.strftime("%H:%M:%S")}  CONTACTO {cid}  {datos["nombre"]} · {datos["empresa"]} <{datos["correo"]}>'
+              f'  [{urlsplit(self.origin()).netloc or "-"}]', flush=True)
         self.send_json(201, {'id': cid, 'fecha': fecha})
 
     # ---------- proxy hacia oMLX ----------
@@ -285,13 +315,15 @@ class Handler(BaseHTTPRequestHandler):
         messages = clean_messages(body['messages'])
         if not messages or messages[-1]['role'] != 'user':
             self.error(400, 'Petición no válida.'); return 400
+        if EMAIL_IN_TEXT.search(messages[-1]['content']):
+            messages[-1] = {'role': 'user', 'content': messages[-1]['content'] + CONTACT_NUDGE}
         if body.get('model') not in usable_models():
             models_cache['t'] = None  # puede que el modelo haya cambiado: se vuelve a consultar la próxima vez
             self.error(404, 'El asistente se está actualizando. Inténtalo de nuevo.'); return 404
         # solo pasan los parámetros conocidos; nunca herramientas ni otro prompt de sistema
         payload = {
             'model': body['model'],
-            'messages': [{'role': 'system', 'content': system_prompt()}] + messages,
+            'messages': [{'role': 'system', 'content': system_prompt(self.origin())}] + messages,
             'stream': bool(body.get('stream', True)),
             'max_tokens': min(int(body.get('max_tokens') or MAX_TOKENS), MAX_TOKENS),
             'temperature': min(max(float(body.get('temperature') or 0.4), 0.0), 1.0),
@@ -332,12 +364,15 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if not API_KEY:
         print('Aviso: OMLX_API_KEY no está definida en .env; se llamará a oMLX sin clave.')
-    system_prompt()  # falla al arrancar si falta contexto.md
+    system_prompt()  # falla al arrancar si falta contexto.md o reglas-contacto.md
     srv = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
     srv.daemon_threads = True
     print(f'Backend del asistente en http://localhost:{PORT}  →  oMLX en {OMLX.geturl()}  '
           f'(máx. {MAX_CONCURRENT} simultáneas, {RATE_PER_MIN} msg/min por visitante, max_tokens {MAX_TOKENS})', flush=True)
+    sites = sorted(f[:-3].replace('_', ':') for f in os.listdir(SITES_DIR) if f.endswith('.md') and not f.startswith('_')) \
+        if os.path.isdir(SITES_DIR) else []
     print(f'Orígenes permitidos: {", ".join(sorted(ALLOWED_ORIGINS))}', flush=True)
+    print(f'Sitios con contexto propio (sitios/): {", ".join(sites) or "ninguno"}', flush=True)
     if ADMIN_PORT:
         import gestion  # página de gestión de contactos: puerto aparte, nunca publicado por el túnel
         try:

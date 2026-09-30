@@ -25,6 +25,7 @@
     // Solicitudes de contacto: el servidor del Mac las guarda con número FAE-…
     tickets: { endpoint: '/api/contactos' },
     attachments: false,
+    contactConfirmation: 'Un socio de Faena te contactará en {correo} en menos de 48 horas hábiles.',
     footnote: 'Asistente virtual de Faena · puede cometer errores',
 
     maxTokens: 1024,

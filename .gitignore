@@ -4,3 +4,5 @@
 !servidor/.env.example
 servidor/datos/
 __pycache__/
+servidor/sitios/*.md
+!servidor/sitios/_plantilla.md

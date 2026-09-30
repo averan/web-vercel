@@ -95,12 +95,12 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: v
 <main>
   <div class="stats" id="stats"></div>
   <div class="filters">
-    <input type="search" id="q" placeholder="Buscar por nombre, empresa, correo, área o necesidad…">
+    <input type="search" id="q" placeholder="Buscar por nombre, empresa, correo, área, necesidad o sitio…">
     <select id="f-estado"><option value="">Todos los estados</option></select>
   </div>
   <div class="card"><div class="table-wrap">
     <table>
-      <thead><tr><th>N.º</th><th>Fecha</th><th>Estado</th><th>Contacto</th><th>Empresa</th><th>Correo</th><th>Área de interés</th></tr></thead>
+      <thead><tr><th>N.º</th><th>Fecha</th><th>Estado</th><th>Contacto</th><th>Empresa</th><th>Correo</th><th>Área de interés</th><th>Sitio</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </div><div class="empty" id="empty" hidden>No hay solicitudes con estos filtros.</div></div>
@@ -150,7 +150,8 @@ async function load() {
       el('td', {}, el('div', { className: 'strong', textContent: c.nombre }), el('div', { className: 'muted', textContent: blank(c.cargo) ? '' : c.cargo })),
       el('td', { textContent: c.empresa }),
       el('td', {}, el('div', { textContent: c.correo }), el('div', { className: 'muted', textContent: blank(c.telefono) ? '' : c.telefono })),
-      el('td', { className: 'wrap muted', textContent: c.interes || '—' }));
+      el('td', { className: 'wrap muted', textContent: c.interes || '—' }),
+      el('td', { className: 'muted', textContent: c.sitio || '—' }));
     if (c.id === current) tr.classList.add('sel');
     tr.onclick = () => openContact(c.id);
     tb.append(tr);
@@ -183,7 +184,7 @@ async function openContact(id) {
 
   const dl = el('dl', { className: 'fields' });
   for (const [k, v] of [['Nombre', c.nombre], ['Cargo', c.cargo], ['Empresa', c.empresa], ['Correo', c.correo], ['Teléfono', c.telefono],
-    ['Área de interés', c.interes], ['Recibida', fmt(c.fecha)]])
+    ['Área de interés', c.interes], ['Sitio', c.sitio], ['Recibida', fmt(c.fecha)]])
     dl.append(el('dt', { textContent: k }), el('dd', { textContent: blank(v) ? '—' : v }));
   const asunto = encodeURIComponent('Faena Growth Partner · tu solicitud ' + c.id);
   const saludo = encodeURIComponent(`Hola ${c.nombre.split(' ')[0]}:\n\nGracias por contactarnos a través de nuestro sitio. `);
