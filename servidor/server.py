@@ -19,6 +19,7 @@ túnel de Cloudflare (ver publicar.sh). Este servidor:
 Uso:  python3 server.py              (configuración en .env, ver .env.example)
       python3 contactos.py listar    (solicitudes recibidas)
 """
+import base64
 import http.client
 import json
 import os
@@ -57,8 +58,20 @@ MAX_TOKENS = int(ENV.get('MAX_TOKENS', 1024))
 MAX_CONCURRENT = int(ENV.get('MAX_CONCURRENT', 2))
 RATE_PER_MIN = int(ENV.get('RATE_PER_MIN', 20))
 CONTACTS_PER_MIN = int(ENV.get('CONTACTOS_PER_MIN', 5))
-MAX_BODY = int(ENV.get('MAX_BODY_KB', 512)) * 1024   # el chat comercial no admite adjuntos
+MAX_BODY = int(ENV.get('MAX_BODY_MB', 25)) * 1024 * 1024   # mensajes con imágenes y documentos
 MAX_MESSAGES = 40                                     # historial que se envía al modelo
+MAX_TEXT = 100000                                     # caracteres por mensaje (incluye documentos extraídos)
+MAX_IMAGES = 6                                        # imágenes por mensaje
+IMAGE_URL_RE = re.compile(r'^data:image/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$')
+# archivos que se guardan con la solicitud de contacto
+MAX_FILES = 10
+MAX_FILE = int(ENV.get('MAX_ADJUNTO_MB', 10)) * 1024 * 1024
+MAX_FILES_TOTAL = int(ENV.get('MAX_ADJUNTOS_TOTAL_MB', 25)) * 1024 * 1024
+CONTACT_MAX_BODY = MAX_FILES_TOTAL * 4 // 3 + 2 * 1024 * 1024   # base64 + datos de la solicitud
+# texto y código: se guardan como text/plain (nunca se ejecutan ni se muestran como HTML)
+TEXT_EXTS = {'txt', 'log', 'out', 'err', 'trace', 'csv', 'tsv', 'json', 'xml', 'md', 'markdown', 'yaml', 'yml', 'ini', 'toml',
+             'sql', 'conf', 'cfg', 'html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'h', 'cpp', 'cs', 'go',
+             'rs', 'rb', 'php', 'swift', 'kt', 'sh', 'tex', 'rtf'}
 ALLOWED_ORIGINS = {o.strip().rstrip('/') for o in ENV.get(
     'ALLOWED_ORIGINS', 'https://web-vercel-zeta-red.vercel.app,http://localhost:5190').split(',') if o.strip()}
 CONTEXT_FILE = os.path.join(ROOT, 'contexto.md')          # contexto predeterminado (Faena)
@@ -183,13 +196,109 @@ def usable_models():
         return ids
 
 
+def clean_content(content):
+    """Texto, o lista de partes de texto e imágenes (data:image/…;base64); cualquier otra cosa se descarta."""
+    if isinstance(content, str):
+        return content[:MAX_TEXT]
+    if not isinstance(content, list):
+        return None
+    parts, images = [], 0
+    for p in content:
+        if not isinstance(p, dict):
+            continue
+        if p.get('type') == 'text' and isinstance(p.get('text'), str):
+            parts.append({'type': 'text', 'text': p['text'][:MAX_TEXT]})
+        elif p.get('type') == 'image_url' and images < MAX_IMAGES:
+            url = (p.get('image_url') or {}).get('url') if isinstance(p.get('image_url'), dict) else None
+            if isinstance(url, str) and IMAGE_URL_RE.match(url):
+                parts.append({'type': 'image_url', 'image_url': {'url': url}})
+                images += 1
+    return parts or None
+
+
+def content_text(content):
+    """Lo que escribió el visitante, sin el texto de los documentos adjuntos (que pueden traer correos o
+    teléfonos ajenos y no deben activar el recordatorio de la solicitud de contacto)."""
+    text = content if isinstance(content, str) else ' '.join(p['text'] for p in content if p['type'] == 'text')
+    return re.sub(r'<documento\b[^>]*>.*?</documento>', ' ', text, flags=re.S)
+
+
+def with_note(content, note):
+    """Agrega una nota al texto del mensaje (sea texto simple o lista con imágenes)."""
+    if isinstance(content, str):
+        return content + note
+    parts = [dict(p) for p in content]
+    for p in parts:
+        if p['type'] == 'text':
+            p['text'] += note
+            return parts
+    return [{'type': 'text', 'text': note.strip()}] + parts
+
+
 def clean_messages(messages):
-    """Solo turnos de usuario/asistente con texto; el prompt de sistema lo pone el servidor."""
+    """Solo turnos de usuario/asistente (texto, e imágenes en los del usuario); el prompt de sistema lo pone el servidor."""
     out = []
     for m in messages[-MAX_MESSAGES:]:
-        if isinstance(m, dict) and m.get('role') in ('user', 'assistant') and isinstance(m.get('content'), str):
-            out.append({'role': m['role'], 'content': m['content'][:8000]})
+        if not isinstance(m, dict) or m.get('role') not in ('user', 'assistant'):
+            continue
+        content = clean_content(m.get('content')) if m['role'] == 'user' else (
+            m['content'][:MAX_TEXT] if isinstance(m.get('content'), str) else None)
+        if content:
+            out.append({'role': m['role'], 'content': content})
     return out
+
+
+def sniff_type(data, name):
+    """Tipo MIME según el contenido real del archivo (no el que declara el navegador); None si no se admite."""
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    if data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'image/png'
+    if data.startswith(b'\xff\xd8\xff'):
+        return 'image/jpeg'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'image/gif'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'image/webp'
+    if data.startswith(b'%PDF-'):
+        return 'application/pdf'
+    if data.startswith(b'PK\x03\x04') and ext == 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    if data.startswith(b'PK\x03\x04') and ext == 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    if data.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1') and ext == 'xls':
+        return 'application/vnd.ms-excel'
+    if (ext in TEXT_EXTS or re.fullmatch(r'log\.\d+', ext)) and b'\x00' not in data[:8192]:
+        return 'text/plain'
+    return None
+
+
+def parse_files(raw):
+    """Valida los archivos de la solicitud. Devuelve (lista [{nombre, tipo, datos}], None) o (None, mensaje de error)."""
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list) or len(raw) > MAX_FILES:
+        return None, f'Puedes adjuntar como máximo {MAX_FILES} archivos por solicitud.'
+    files, total = [], 0
+    for f in raw:
+        if not isinstance(f, dict):
+            return None, 'Archivo no válido.'
+        name = os.path.basename(str(f.get('nombre') or 'archivo').replace('\\', '/'))[:200] or 'archivo'
+        try:
+            data = base64.b64decode(str(f.get('contenido_base64') or ''), validate=True)
+        except ValueError:
+            return None, f'El archivo «{name}» está dañado.'
+        if not data:
+            continue
+        if len(data) > MAX_FILE:
+            return None, f'«{name}» supera el máximo de {MAX_FILE // 1048576} MB por archivo.'
+        total += len(data)
+        if total > MAX_FILES_TOTAL:
+            return None, f'Los archivos superan el máximo de {MAX_FILES_TOTAL // 1048576} MB por solicitud.'
+        mime = sniff_type(data, name)
+        if not mime:
+            return None, f'«{name}» no es un tipo de archivo admitido.'
+        files.append({'nombre': name, 'tipo': mime, 'datos': data})
+    return files, None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -270,8 +379,10 @@ class Handler(BaseHTTPRequestHandler):
     def check_contact(self, ip):
         """Valida la solicitud. Devuelve (status, mensaje de error) o (201, None) y deja los datos en self._contact."""
         length = int(self.headers.get('Content-Length') or 0)
-        if length <= 0 or length > MAX_BODY:
+        if length <= 0:
             return 400, 'Solicitud no válida.'
+        if length > CONTACT_MAX_BODY:
+            return 413, f'Los archivos superan el máximo de {MAX_FILES_TOTAL // 1048576} MB por solicitud.'
         if rate_limited('contacto:' + ip, CONTACTS_PER_MIN):
             return 429, 'Has enviado demasiadas solicitudes seguidas. Espera un minuto.'
         try:
@@ -291,7 +402,10 @@ class Handler(BaseHTTPRequestHandler):
             return 400, 'Indica al menos un medio de contacto (correo, teléfono u otro).'
         if datos['correo'] and not EMAIL_RE.match(datos['correo']):
             return 400, 'El correo no parece válido. Corrígelo y vuelve a enviar.'
-        self._contact = (data, datos)
+        files, problem = parse_files(data.get('archivos'))
+        if problem:
+            return 400, problem
+        self._contact = (data, datos, files)
         return 201, None
 
     def create_contact(self):
@@ -300,22 +414,23 @@ class Handler(BaseHTTPRequestHandler):
         if problem:  # se registra el rechazo para poder diagnosticar envíos que no llegan
             print(f'{time.strftime("%H:%M:%S")}  CONTACTO RECHAZADO  {ip:<15}  {status}  {problem}', flush=True)
             return self.error(status, problem)
-        data, datos = self._contact
+        data, datos, files = self._contact
         conv = data.get('conversacion') if isinstance(data.get('conversacion'), list) else []
-        conversacion = [{'rol': str(m.get('role', ''))[:20], 'texto': str(m.get('content', ''))[:4000]}
+        conversacion = [{'rol': str(m.get('role', ''))[:20], 'texto': str(m.get('content', ''))[:4000],
+                         'adjuntos': [str(a)[:200] for a in (m.get('adjuntos') or [])][:10] if isinstance(m.get('adjuntos'), list) else []}
                         for m in conv[-MAX_MESSAGES:] if isinstance(m, dict)]
         try:
             db = contactos.connect()
             try:
-                cid, fecha = contactos.crear(db, datos, conversacion, ip, urlsplit(self.origin()).netloc)
+                cid, fecha = contactos.crear(db, datos, conversacion, ip, urlsplit(self.origin()).netloc, files)
             finally:
                 db.close()
         except Exception as e:  # noqa: BLE001 — cualquier fallo del registro se informa igual al visitante
             print(f'{time.strftime("%H:%M:%S")}  CONTACTO ERROR  {e}', flush=True)
             return self.error(503, 'No se pudo registrar la solicitud en este momento. Inténtalo en unos minutos.')
         print(f'{time.strftime("%H:%M:%S")}  CONTACTO {cid}  {datos["nombre"]} · {datos["empresa"]} <{datos["correo"]}>'
-              f'  [{urlsplit(self.origin()).netloc or "-"}]', flush=True)
-        self.send_json(201, {'id': cid, 'fecha': fecha})
+              f'  [{urlsplit(self.origin()).netloc or "-"}]' + (f'  📎 {len(files)}' if files else ''), flush=True)
+        self.send_json(201, {'id': cid, 'fecha': fecha, 'adjuntos': len(files)})
 
     # ---------- proxy hacia oMLX ----------
     def proxy_get(self, path):
@@ -338,7 +453,7 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0:
             self.error(400, 'Petición vacía.'); return 400
         if length > MAX_BODY:
-            self.error(413, 'La conversación es demasiado larga. Empieza una nueva.'); return 413
+            self.error(413, 'El mensaje o los archivos son demasiado grandes.'); return 413
         if rate_limited(ip):
             self.error(429, 'Has enviado demasiados mensajes seguidos. Espera un minuto e inténtalo de nuevo.'); return 429
         try:
@@ -351,9 +466,9 @@ class Handler(BaseHTTPRequestHandler):
         if not messages or messages[-1]['role'] != 'user':
             self.error(400, 'Petición no válida.'); return 400
         any_contact = bool(site_config(self.origin())[1]['al_menos_uno'])
-        last = messages[-1]['content']
+        last = content_text(messages[-1]['content'])
         if EMAIL_IN_TEXT.search(last) or (any_contact and PHONE_IN_TEXT.search(last)):
-            messages[-1] = {'role': 'user', 'content': last + (CONTACT_NUDGE_ANY if any_contact else CONTACT_NUDGE)}
+            messages[-1] = {'role': 'user', 'content': with_note(messages[-1]['content'], CONTACT_NUDGE_ANY if any_contact else CONTACT_NUDGE)}
         if body.get('model') not in usable_models():
             models_cache['t'] = None  # puede que el modelo haya cambiado: se vuelve a consultar la próxima vez
             self.error(404, 'El asistente se está actualizando. Inténtalo de nuevo.'); return 404

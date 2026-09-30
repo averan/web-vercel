@@ -59,6 +59,11 @@ Arranca el backend, abre un túnel y sube a GitHub la nueva dirección en `backe
 Vercel se actualiza solo en ~30 s. Con **Ctrl+C** se desconecta y la web muestra
 «asistente no disponible» con el correo de contacto.
 
+**Archivos adjuntos:** el visitante puede adjuntar imágenes, PDF, Word, Excel y texto (clip, arrastrar o pegar).
+El asistente los analiza y, si envía la solicitud, se guardan con ella en la base de contactos (máx. 10 archivos,
+10 MB cada uno y 25 MB en total). El servidor verifica el tipo real de cada archivo por su contenido y rechaza el resto.
+Para desactivarlos en un sitio: `attachments: false` en `window.FAENA_BOT`.
+
 **Ver y gestionar las solicitudes de contacto:** abre **http://localhost:5195** en este Mac
 (se inicia junto con el backend; no se publica en internet). Muestra la lista con filtros por
 estado y búsqueda, el detalle con la necesidad y la conversación con Faena-Bot, un botón para

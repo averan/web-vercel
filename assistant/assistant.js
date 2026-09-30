@@ -578,27 +578,55 @@
     bar.append(b);
     bubble.append(bar);
   }
+  // Reúne los archivos adjuntos de la conversación para guardarlos con la solicitud.
+  // Usa el original si sigue en memoria; si no (p. ej. tras recargar), la imagen reducida o el texto extraído.
+  const FILE_IMAGE = /^image\/(png|jpeg|gif|webp)$/;
+  const MAX_SAVED_FILE = 10 * 1048576, MAX_SAVED_TOTAL = 25 * 1048576;
+  const toBase64 = blob => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = ko; r.readAsDataURL(blob); });
+  async function conversationFiles(index) {
+    const archivos = [], omitidos = [];
+    let total = 0;
+    for (const m of history.slice(0, index + 1)) {
+      for (const a of (m.role === 'user' && m.attachments) || []) {
+        const file = originals.get(a.fid);
+        let nombre = a.name, contenido = null;
+        if (file && file.size <= MAX_SAVED_FILE && (a.type !== 'image' || FILE_IMAGE.test(file.type))) contenido = await toBase64(file);
+        else if (a.type === 'image' && a.url) { contenido = a.url.split(',')[1]; if (!/\.(jpe?g|png|gif|webp)$/i.test(nombre)) nombre += '.jpg'; }
+        else if (a.text) { contenido = await toBase64(new Blob([a.text], { type: 'text/plain' })); nombre += ' (texto extraído).txt'; }
+        const size = contenido ? contenido.length * 3 / 4 : 0;
+        if (!contenido || archivos.length >= 10 || total + size > MAX_SAVED_TOTAL) { omitidos.push(a.name); continue; }
+        total += size;
+        archivos.push({ nombre, contenido_base64: contenido });
+      }
+    }
+    return { archivos, omitidos };
+  }
   async function submitTicket(t, index, bar) {
     if (ctrl) return;
     const buttons = bar.querySelectorAll('button'), status = bar.querySelector('.oa-ticket-status');
     buttons.forEach(b => { b.disabled = true; });
     const convo = history;
     try {
-      status.textContent = 'Enviando…';
+      status.textContent = 'Preparando…';
+      const { archivos, omitidos } = await conversationFiles(index);
+      status.textContent = archivos.length ? `Enviando solicitud y ${archivos.length} archivo(s)…` : 'Enviando…';
       const res = await api(cfg.tickets.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...t,
-          conversacion: history.slice(0, index + 1).map(m => ({ role: m.role, content: m.content })),
+          conversacion: history.slice(0, index + 1).map(m => ({ role: m.role, content: m.content, adjuntos: (m.attachments || []).map(a => a.name) })),
+          archivos,
         }),
       });
-      const { id } = await res.json();
+      const { id, adjuntos = 0 } = await res.json();
       if (history !== convo) return;
       history[index].ticketId = id;
       const contacto = ['correo', 'telefono', 'otro'].map(k => t[k]).find(v => !blankField(v)) || 'el medio que indicaste';
       const note = `✅ **Solicitud enviada** (${id}). ` + String(cfg.contactConfirmation)
-        .replace(/\{contacto\}/g, contacto).replace(/\{correo\}/g, t.correo).replace(/\{id\}/g, id);
+        .replace(/\{contacto\}/g, contacto).replace(/\{correo\}/g, t.correo).replace(/\{id\}/g, id)
+        + (adjuntos ? ` Se guardaron ${adjuntos} archivo(s) con tu solicitud.` : '')
+        + (omitidos.length ? ` No se pudieron guardar: ${omitidos.join(', ')}.` : '');
       history.push({ role: 'assistant', content: note });
       saveHistory();
       bar.className = 'oa-ticket-bar oa-ticket-done';

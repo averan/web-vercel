@@ -24,9 +24,10 @@
 
     // Solicitudes de contacto: el servidor del Mac las guarda con número FAE-…
     tickets: { endpoint: '/api/contactos' },
-    attachments: false,
+    attachments: true,   // imágenes, PDF, Word, Excel y texto; se guardan con la solicitud de contacto
+    maxFileMB: 10,
     contactConfirmation: 'Un socio de Faena te contactará en {correo} en menos de 48 horas hábiles.',
-    footnote: 'Asistente virtual de Faena · puede cometer errores',
+    footnote: 'Asistente virtual de Faena · admite imágenes, PDF, Word, Excel y texto',
 
     maxTokens: 1024,
     temperature: 0.4,

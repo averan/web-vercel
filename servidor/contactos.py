@@ -9,6 +9,7 @@ gestion.py (página de gestión en http://localhost:5195). También se puede usa
 
 Ruta de la base: CONTACTOS_DB (variable de entorno) o datos/contactos.db junto a este archivo.
 """
+import hashlib
 import json
 import os
 import sqlite3
@@ -44,6 +45,15 @@ CREATE TABLE IF NOT EXISTS contactos (
     otro         TEXT,                      -- otro medio de contacto (WhatsApp, LinkedIn, Telegram…)
     preferencia  TEXT                       -- cómo prefiere que lo contacten (llamada, Meet…)
 );
+CREATE TABLE IF NOT EXISTS adjuntos (       -- archivos que el visitante adjuntó en la conversación
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contacto_id TEXT NOT NULL REFERENCES contactos(id),
+    nombre      TEXT NOT NULL,
+    tipo        TEXT NOT NULL,              -- tipo MIME verificado por el servidor
+    tamano      INTEGER NOT NULL,
+    sha256      TEXT NOT NULL,
+    datos       BLOB NOT NULL
+);
 CREATE TABLE IF NOT EXISTS notas (          -- historial de gestión (cambios de estado y notas)
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     contacto_id TEXT NOT NULL REFERENCES contactos(id),
@@ -72,8 +82,9 @@ def connect(path=DB_PATH):
     return db
 
 
-def crear(db, datos, conversacion, ip, sitio=''):
-    """Inserta una solicitud ya validada y devuelve (id, fecha). El número se asigna dentro de una transacción."""
+def crear(db, datos, conversacion, ip, sitio='', archivos=()):
+    """Inserta una solicitud ya validada con sus archivos [{nombre, tipo, datos(bytes)}] y devuelve (id, fecha).
+    Todo va en una sola transacción: o se guarda completa o no se guarda nada."""
     fecha = time.strftime('%Y-%m-%dT%H:%M:%S')
     db.execute('BEGIN IMMEDIATE')
     try:
@@ -83,6 +94,9 @@ def crear(db, datos, conversacion, ip, sitio=''):
             f'INSERT INTO contactos (id, fecha, {", ".join(CAMPOS)}, conversacion, ip, sitio) '
             f'VALUES (?, ?, {", ".join("?" * len(CAMPOS))}, ?, ?, ?)',
             (cid, fecha, *(datos.get(k, '') for k in CAMPOS), json.dumps(conversacion, ensure_ascii=False), ip, sitio))
+        for a in archivos:
+            db.execute('INSERT INTO adjuntos (contacto_id, nombre, tipo, tamano, sha256, datos) VALUES (?, ?, ?, ?, ?, ?)',
+                       (cid, a['nombre'], a['tipo'], len(a['datos']), hashlib.sha256(a['datos']).hexdigest(), a['datos']))
         db.execute('COMMIT')
     except Exception:
         db.execute('ROLLBACK')
@@ -91,7 +105,8 @@ def crear(db, datos, conversacion, ip, sitio=''):
 
 
 def listar(db, estado='', texto=''):
-    sql, args = 'SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, otro, preferencia, interes, sitio FROM contactos WHERE 1=1', []
+    sql, args = ('SELECT id, fecha, estado, nombre, empresa, cargo, correo, telefono, otro, preferencia, interes, sitio, '
+                 '(SELECT COUNT(*) FROM adjuntos a WHERE a.contacto_id = contactos.id) AS adjuntos FROM contactos WHERE 1=1'), []
     if estado:
         sql += ' AND estado = ?'; args.append(estado)
     if texto:
@@ -112,7 +127,15 @@ def obtener(db, cid):
     out = dict(r)
     out['conversacion'] = json.loads(r['conversacion'] or '[]')
     out['notas'] = [dict(n) for n in db.execute('SELECT fecha, texto FROM notas WHERE contacto_id = ? ORDER BY id', (r['id'],))]
+    out['adjuntos'] = [dict(a) for a in db.execute(
+        'SELECT id, nombre, tipo, tamano, sha256 FROM adjuntos WHERE contacto_id = ? ORDER BY id', (r['id'],))]
     return out
+
+
+def leer_adjunto(db, adjunto_id):
+    """(nombre, tipo, bytes) de un archivo adjunto, o None si no existe."""
+    row = db.execute('SELECT nombre, tipo, datos FROM adjuntos WHERE id = ?', (int(adjunto_id),)).fetchone()
+    return (row['nombre'], row['tipo'], bytes(row['datos'])) if row else None
 
 
 def actualizar(db, cid, estado=None, nota=None):
@@ -149,7 +172,8 @@ def main():
         for r in filas:
             medio = ' / '.join(v for v in (r['correo'], r['telefono'], r['otro']) if v and not v.lower().startswith('no informad'))
             print(f"{r['id']}  {r['fecha'][:16].replace('T', ' ')}  {r['estado']:<9}  {r['nombre']} · {r['empresa']} <{medio}>"
-                  + (f"  [{r['interes']}]" if r['interes'] else '') + (f"  · {r['sitio']}" if r['sitio'] else ''))
+                  + (f"  [{r['interes']}]" if r['interes'] else '') + (f"  📎 {r['adjuntos']}" if r['adjuntos'] else '')
+                  + (f"  · {r['sitio']}" if r['sitio'] else ''))
         return print(f'\n{len(filas)} solicitud(es) · {DB_PATH}')
     if cmd == 'ver' and len(sys.argv) > 2:
         r = db.execute('SELECT * FROM contactos WHERE id = ?', (sys.argv[2].upper(),)).fetchone()
@@ -157,6 +181,8 @@ def main():
             return print('No existe esa solicitud.')
         for k in ('id', 'fecha', 'estado', 'sitio', 'nombre', 'empresa', 'cargo', 'correo', 'telefono', 'otro', 'preferencia', 'interes', 'necesidad', 'ip'):
             print(f'{k:>10}: {r[k] or "-"}')
+        for a in db.execute('SELECT id, nombre, tipo, tamano FROM adjuntos WHERE contacto_id = ?', (r['id'],)):
+            print(f"  📎 {a['nombre']}  ({a['tipo']}, {a['tamano']} bytes)")
         print('\nConversación:')
         for m in json.loads(r['conversacion'] or '[]'):
             print(f"  [{m.get('rol')}] {m.get('texto')}\n")
