@@ -40,7 +40,7 @@ El asistente ya no vive en este proyecto: es el proyecto independiente
 con una línea, antes de `</body>`:
 
 ```html
-<script src="https://asistente-ia.andres-veran.workers.dev/embed.js" defer></script>
+<script src="https://asistente-ia.faenabot.stream/embed.js" defer></script>
 ```
 
 Su configuración (nombre, saludo, sugerencias, colores, datos obligatorios) y lo que sabe de Faena están en el

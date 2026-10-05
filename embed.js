@@ -3,10 +3,10 @@
  * Las páginas que todavía usan
  *   <script src="https://web-vercel-zeta-red.vercel.app/embed.js" defer></script>
  * siguen funcionando: este archivo carga el embed nuevo. Para integraciones nuevas usa directamente
- *   <script src="https://asistente-ia.andres-veran.workers.dev/embed.js" defer></script>
+ *   <script src="https://asistente-ia.faenabot.stream/embed.js" defer></script>
  */
 (() => {
   const s = document.createElement('script');
-  s.src = 'https://asistente-ia.andres-veran.workers.dev/embed.js';
+  s.src = 'https://asistente-ia.faenabot.stream/embed.js';
   document.head.append(s);
 })();
